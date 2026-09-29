@@ -16,7 +16,7 @@
     "db:seed:demo": "node --env-file-if-exists=.env server/scripts/seed.js --demo",
     "admin:create": "node --env-file-if-exists=.env server/scripts/create-admin.js",
     "worker": "node --env-file-if-exists=.env server/scripts/worker.js",
-    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 server/tests/"
+    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 \"server/tests/**/*.test.js\""
   },
   "dependencies": {
     "argon2": "^0.45.1",
