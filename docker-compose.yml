@@ -1,0 +1,27 @@
+# Opzionale: MySQL 8 locale per lo sviluppo.
+# Avvio:   docker compose up -d
+# Usa i valori DB_USER, DB_PASSWORD, DB_NAME e TEST_DB_NAME del file .env.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: lnc-mysql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: ${DB_NAME:-la_nostra_citta}
+      MYSQL_USER: ${DB_USER:-lnc_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Imposta DB_PASSWORD nel file .env}
+      TEST_DB_NAME: ${TEST_DB_NAME:-la_nostra_citta_test}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # Consente all'utente applicativo di creare trigger con il log binario attivo
+      - --log-bin-trust-function-creators=1
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/docker-init:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  mysql-data:

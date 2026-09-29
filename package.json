@@ -1,0 +1,40 @@
+{
+  "name": "la-nostra-citta-webapp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "La Nostra Città, Il Nostro Futuro — piattaforma di segnalazioni del comitato Insieme per Milano",
+  "type": "module",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env server/src/server.js",
+    "db:migrate": "node --env-file-if-exists=.env server/scripts/migrate.js",
+    "db:reset": "node --env-file-if-exists=.env server/scripts/migrate.js --fresh",
+    "db:seed": "node --env-file-if-exists=.env server/scripts/seed.js",
+    "db:seed:demo": "node --env-file-if-exists=.env server/scripts/seed.js --demo",
+    "admin:create": "node --env-file-if-exists=.env server/scripts/create-admin.js",
+    "worker": "node --env-file-if-exists=.env server/scripts/worker.js",
+    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 server/tests/"
+  },
+  "dependencies": {
+    "argon2": "^0.45.1",
+    "cors": "^2.8.6",
+    "exifr": "^7.1.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "express-session": "^1.19.0",
+    "file-type": "^22.1.1",
+    "helmet": "^8.3.0",
+    "leaflet": "^1.9.4",
+    "multer": "^2.4.0",
+    "mysql2": "^3.24.4",
+    "pino": "^10.3.1",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.0"
+  }
+}
