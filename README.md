@@ -21,10 +21,35 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 
 ## Requisiti
 
-- **Node.js 22.9** o superiore
-- **MySQL 8.0** o superiore, installato in locale oppure tramite Docker (`docker-compose.yml`)
+- **Docker** con Docker Compose, per l'avvio completo in container; oppure
+- **Node.js 22.9** o superiore e **MySQL 8.0** o superiore (locale o nel container `mysql` del `docker-compose.yml`)
 
 ## Installazione
+
+Ci sono due modi per avviare il progetto: **tutto in Docker** (non serve Node.js sul computer) oppure **Node.js in locale** con MySQL locale o in Docker.
+
+### Opzione A — Tutto in Docker
+
+```bash
+git clone https://github.com/GabriWasef/la-nostra-citta-webapp.git
+cd la-nostra-citta-webapp
+cp .env.example .env          # imposta almeno DB_PASSWORD e SESSION_SECRET
+docker compose up -d --build
+```
+
+Il servizio `app` costruisce l'immagine (con `npm ci` eseguito **dentro** il container), attende che MySQL sia pronto, applica migrazioni e dati di base e avvia il server su <http://localhost:3000>. Gli allegati sono conservati nel volume `uploads`.
+
+Comandi di gestione, eseguiti nel container:
+
+```bash
+docker compose exec app node server/scripts/create-admin.js --email tu@esempio.it --nome Mario --cognome Rossi
+docker compose exec app node server/scripts/seed.js --demo     # richiede SEED_DEMO_PASSWORD in .env
+docker compose logs -f app
+```
+
+Nel container `DB_HOST` punta automaticamente al servizio `mysql`, quindi il valore in `.env` vale solo per l'avvio fuori da Docker.
+
+### Opzione B — Node.js in locale
 
 ```bash
 git clone https://github.com/GabriWasef/la-nostra-citta-webapp.git
@@ -33,18 +58,12 @@ npm install
 cp .env.example .env
 ```
 
-Poi apri `.env` e imposta almeno:
-
-- `DB_USER`, `DB_PASSWORD`, `DB_NAME`: credenziali di un utente MySQL dedicato (non root);
-- `SESSION_SECRET`: stringa casuale di almeno 32 caratteri, generabile con
-  `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`.
-
 ### Database
 
-**Con Docker** (i valori sono letti da `.env`):
+**MySQL in Docker** (i valori sono letti da `.env`):
 
 ```bash
-docker compose up -d
+docker compose up -d mysql
 ```
 
 Il container crea il database, l'utente applicativo e il database di test.
@@ -170,6 +189,20 @@ Salvare anche la cartella `uploads/` (oppure il bucket, se si usa un object stor
 - Segnalazioni anonime o riservate al comitato; disattivazione dell'account con anonimizzazione dei dati personali.
 - Registro delle operazioni importanti consultabile dagli amministratori.
 - In produzione: servire l'app dietro un reverse proxy HTTPS e impostare `NODE_ENV=production` e `TRUST_PROXY=true` (cookie `Secure`, HSTS).
+
+## Risoluzione dei problemi
+
+**`Error: …/node_modules/argon2/build/Release/argon2.node: invalid ELF header`** (oppure un errore simile su `sharp`)
+
+`argon2` e `sharp` contengono moduli nativi compilati per il sistema su cui si esegue `npm install`. L'errore compare quando una cartella `node_modules` installata su macOS o Windows viene usata dentro un container o un server Linux.
+
+- **Con Docker:** usa il `Dockerfile` e il `docker-compose.yml` del progetto (`docker compose up -d --build`). Il `.dockerignore` esclude `node_modules` e le dipendenze vengono installate nell'immagine. Se usi un tuo Dockerfile, non copiare `node_modules` ed esegui `npm ci` nel container.
+- **Con la cartella del progetto montata nel container** (`volumes: - .:/app`): aggiungi anche un volume `- /app/node_modules`, così le dipendenze del container non vengono sostituite da quelle del computer, ed esegui `npm ci` nel container.
+- **Su un server:** non copiare `node_modules`, ma esegui `npm ci --omit=dev` sul server stesso. In alternativa, dentro l'ambiente che dà l'errore: `rm -rf node_modules && npm ci`.
+
+**`You do not have the SUPER privilege and binary logging is enabled`** durante `npm run db:migrate`: abilita `log_bin_trust_function_creators` (vedi la sezione Database). Con il `docker-compose.yml` del progetto è già attivo.
+
+**Il login riesce ma la sessione non resta aperta:** con `NODE_ENV=production` il cookie è `Secure` e viaggia solo su HTTPS. In locale usa `NODE_ENV=development`; in produzione metti l'app dietro un reverse proxy HTTPS con `TRUST_PROXY=true`.
 
 ## Limiti noti e sviluppi futuri
 
