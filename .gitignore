@@ -1,0 +1,17 @@
+# Dipendenze
+node_modules/
+
+# Configurazione locale e segreti
+.env
+.env.*
+!.env.example
+
+# File caricati dagli utenti
+uploads/*
+!uploads/.gitkeep
+
+# Log e file temporanei
+*.log
+coverage/
+.DS_Store
+Thumbs.db
