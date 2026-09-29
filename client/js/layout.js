@@ -137,5 +137,6 @@ export async function initPage({ attiva = null, richiedeAccesso = false, ruoli =
 
 /** Destinazione sicura dopo il login: solo percorsi interni. */
 export function ritornoSicuro(valore, predefinito = '/') {
-  return typeof valore === 'string' && valore.startsWith('/') && !valore.startsWith('//') ? valore : predefinito;
+  // Niente "//host" né "/\host": i browser trattano la barra rovesciata come "/".
+  return typeof valore === 'string' && /^\/(?![\/\\])/.test(valore) ? valore : predefinito;
 }
