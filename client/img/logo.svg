@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="La Nostra Città">
+  <rect width="64" height="64" rx="14" fill="#0e5a4b"/>
+  <path d="M10 50V34h7v-8h6v24h4V22l6-6 6 6v28h4V30h7v20z" fill="#dcebe6" opacity=".55"/>
+  <path d="M32 12c-7.2 0-13 5.6-13 12.6C19 34 32 48 32 48s13-14 13-23.4C45 17.6 39.2 12 32 12z" fill="#f0a06a"/>
+  <circle cx="32" cy="24.5" r="5" fill="#0e5a4b"/>
+  <rect x="8" y="50" width="48" height="3" rx="1.5" fill="#dcebe6"/>
+</svg>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accedi · La Nostra Città</title>
+  <meta name="description" content="Accedi alla piattaforma La Nostra Città.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="module" src="/js/pages/login.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <div class="panel form-narrow">
+        <h1>Accedi</h1>
+        <p class="muted">Per inserire segnalazioni e sostenere quelle degli altri cittadini.</p>
+        <form id="form-login" novalidate>
+          <div class="field">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" name="email" required autocomplete="email" inputmode="email">
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Accedi</button>
+        </form>
+        <p class="small"><a href="/recupero-password">Hai dimenticato la password?</a></p>
+        <p class="small">Non hai un account? <a href="/registrazione">Registrati</a></p>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

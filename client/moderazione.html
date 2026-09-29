@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moderazione · La Nostra Città</title>
+  <meta name="description" content="Area riservata al comitato.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="module" src="/js/pages/moderazione.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <div class="page-header">
+        <h1>Moderazione</h1>
+        <p>Verifica le segnalazioni in arrivo, controlla allegati e analisi automatiche, approva o rifiuta e aggiorna lo stato di avanzamento.</p>
+      </div>
+      <form class="filtri" id="filtri" role="search">
+        <div class="field field-ricerca"><label for="q">Cerca</label><input type="search" id="q" name="q" maxlength="100"></div>
+        <div class="field"><label for="stato">Stato</label><select id="stato" name="stato"></select></div>
+        <div class="field"><label for="quartiere">Quartiere</label><select id="quartiere" name="quartiere"></select></div>
+        <div class="field"><label for="ordina">Ordina per</label>
+          <select id="ordina" name="ordina"><option value="meno_recenti">Meno recenti (prima i più vecchi)</option><option value="recenti">Più recenti</option><option value="sostegni">Più sostenute</option></select></div>
+      </form>
+      <p id="conteggio" class="muted" aria-live="polite"></p>
+      <div id="elenco"></div>
+      <div id="paginazione"></div>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

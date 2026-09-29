@@ -1,0 +1,15 @@
+# Le dipendenze vanno installate dentro l'immagine: moduli nativi come
+# argon2 e sharp compilati su macOS/Windows non funzionano in Linux
+# ("invalid ELF header").
+node_modules
+npm-debug.log*
+
+# Segreti e dati locali
+.env
+.env.*
+!.env.example
+uploads
+
+.git
+docs
+*.log

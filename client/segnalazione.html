@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Segnalazione · La Nostra Città</title>
+  <meta name="description" content="Segnala i problemi del tuo quartiere, sostieni le proposte degli altri cittadini e costruisci le priorità di Milano.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <script src="/vendor/leaflet/leaflet.js" defer></script>
+  <script type="module" src="/js/pages/segnalazione.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <p class="page-header"><a href="/">← Torna alle segnalazioni</a></p>
+      <div id="messaggi"></div>
+      <div id="segnalazione" aria-live="polite"><div class="scheletro"></div></div>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

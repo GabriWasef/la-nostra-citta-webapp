@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mappa · La Nostra Città</title>
+  <meta name="description" content="Mappa delle segnalazioni pubblicate a Milano.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <script src="/vendor/leaflet/leaflet.js" defer></script>
+  <script type="module" src="/js/pages/mappa.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <div class="page-header">
+        <h1>Mappa delle segnalazioni</h1>
+        <p>Le segnalazioni pubblicate di cui è nota la posizione. Tocca un punto per aprirla.</p>
+      </div>
+      <form class="filtri" id="filtri">
+        <div class="field"><label for="quartiere">Quartiere</label><select id="quartiere" name="quartiere"></select></div>
+        <div class="field"><label for="categoria">Categoria</label><select id="categoria" name="categoria"></select></div>
+        <div class="field"><label for="stato">Stato</label><select id="stato" name="stato"></select></div>
+      </form>
+      <p id="conteggio" class="muted small" aria-live="polite"></p>
+      <div id="mappa" class="mappa mappa-grande" role="region" aria-label="Mappa delle segnalazioni"></div>
+      <div class="legenda" id="legenda" aria-label="Legenda degli stati"></div>
+      <details class="panel">
+        <summary>Elenco dei punti sulla mappa (alternativa testuale)</summary>
+        <ul id="elenco-punti"></ul>
+      </details>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

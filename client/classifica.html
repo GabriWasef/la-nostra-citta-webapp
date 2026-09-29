@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Classifica delle priorità · La Nostra Città</title>
+  <meta name="description" content="Le segnalazioni più sostenute dai cittadini.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="module" src="/js/pages/classifica.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <div class="page-header">
+        <h1>Classifica delle priorità</h1>
+        <p>Le segnalazioni pubblicate più sostenute dai cittadini: sono la base del documento programmatico che il comitato presenterà ai candidati Sindaco.</p>
+      </div>
+      <form class="filtri" id="filtri">
+        <div class="field"><label for="quartiere">Quartiere</label><select id="quartiere" name="quartiere"></select></div>
+        <div class="field"><label for="categoria">Categoria</label><select id="categoria" name="categoria"></select></div>
+      </form>
+      <ol class="classifica" id="classifica" aria-live="polite"></ol>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

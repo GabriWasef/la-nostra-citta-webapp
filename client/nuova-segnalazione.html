@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuova segnalazione · La Nostra Città</title>
+  <meta name="description" content="Invia una segnalazione con foto o video del problema.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <script src="/vendor/leaflet/leaflet.js" defer></script>
+  <script type="module" src="/js/pages/nuova-segnalazione.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <div class="page-header">
+        <h1>Nuova segnalazione</h1>
+        <p>Descrivi il problema e allega almeno una foto o un breve video: è la prova che rende credibile la tua segnalazione. Il comitato la verificherà prima della pubblicazione.</p>
+      </div>
+
+      <form id="form-segnalazione" class="stack" novalidate>
+        <section class="panel" aria-labelledby="sez-problema">
+          <h2 id="sez-problema">1. Il problema</h2>
+          <div class="field">
+            <label for="titolo">Titolo <span class="contatore" id="cont-titolo" aria-live="polite"></span></label>
+            <input type="text" id="titolo" name="titolo" required minlength="5" maxlength="150" autocomplete="off"
+                   placeholder="Es. Buca profonda all’incrocio di via Padova" aria-describedby="hint-titolo">
+            <span class="hint" id="hint-titolo">Da 5 a 150 caratteri: una frase breve e chiara.</span>
+          </div>
+          <div class="field">
+            <label for="descrizione">Descrizione <span class="contatore" id="cont-descrizione" aria-live="polite"></span></label>
+            <textarea id="descrizione" name="descrizione" required minlength="20" maxlength="5000" aria-describedby="hint-descrizione"
+                      placeholder="Cosa succede, da quanto tempo, chi ne è colpito…"></textarea>
+            <span class="hint" id="hint-descrizione">Almeno 20 caratteri. Evita dati personali di altre persone.</span>
+          </div>
+          <fieldset>
+            <legend>Categorie <span class="opzionale">(facoltative, massimo 5)</span></legend>
+            <p class="hint">Se non sai quale scegliere lascia vuoto: la piattaforma proporrà le categorie e il comitato le confermerà.</p>
+            <div class="chip-group" id="categorie"></div>
+          </fieldset>
+        </section>
+
+        <section class="panel" aria-labelledby="sez-allegati">
+          <h2 id="sez-allegati">2. Foto o video <span class="opzionale">(obbligatorio)</span></h2>
+          <div class="field">
+            <label class="dropzone" id="dropzone">
+              <input type="file" id="allegati" name="allegati" multiple
+                     accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,.jpg,.jpeg,.png,.webp,.mp4,.mov,.webm"
+                     aria-describedby="hint-allegati">
+              <strong>📷 Scatta o scegli una foto o un video</strong>
+              <span class="muted small">oppure trascina qui i file</span>
+            </label>
+            <span class="hint" id="hint-allegati"></span>
+            <ul class="anteprime" id="anteprime" aria-label="File selezionati"></ul>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="sez-luogo">
+          <h2 id="sez-luogo">3. Dove</h2>
+          <div class="field">
+            <label for="id_quartiere">Quartiere interessato</label>
+            <select id="id_quartiere" name="id_quartiere" required></select>
+          </div>
+          <div class="field">
+            <label for="indirizzo">Indirizzo <span class="opzionale">(facoltativo)</span></label>
+            <input type="text" id="indirizzo" name="indirizzo" maxlength="255" autocomplete="street-address" placeholder="Es. Via Padova 120">
+          </div>
+          <div class="field">
+            <span class="label" id="etichetta-mappa">Posizione sulla mappa <span class="opzionale">(facoltativa)</span></span>
+            <p class="hint">Tocca la mappa per indicare il punto esatto, oppure usa la tua posizione attuale.</p>
+            <div id="mappa-scelta" class="mappa" role="application" aria-labelledby="etichetta-mappa"></div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-small" id="usa-posizione">📍 Usa la mia posizione</button>
+              <button type="button" class="btn btn-small" id="rimuovi-posizione" hidden>Rimuovi il punto</button>
+              <span class="small muted" id="coordinate" aria-live="polite"></span>
+            </div>
+            <label class="check">
+              <input type="checkbox" name="usa_posizione_foto" id="usa_posizione_foto" checked>
+              <span>Se non indico un punto, usa la posizione GPS contenuta nella foto (se presente). <span class="muted small">I metadati vengono comunque rimossi dalla foto pubblicata.</span></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="sez-visibilita">
+          <h2 id="sez-visibilita">4. Visibilità</h2>
+          <fieldset>
+            <legend class="visually-hidden">Chi può vedere la segnalazione</legend>
+            <div class="radio-card">
+              <label><input type="radio" name="visibilita" value="PUBBLICA" checked>
+                <span><strong>Pubblica</strong><small>Visibile a tutti con il tuo nome.</small></span></label>
+              <label><input type="radio" name="visibilita" value="ANONIMA">
+                <span><strong>Anonima</strong><small>Visibile a tutti senza il tuo nome. Il comitato sa chi sei.</small></span></label>
+              <label><input type="radio" name="visibilita" value="PRIVATA">
+                <span><strong>Solo al comitato</strong><small>Non compare negli elenchi pubblici.</small></span></label>
+            </div>
+          </fieldset>
+        </section>
+
+        <div class="panel">
+          <div class="progress" id="progresso" hidden><div></div></div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Invia la segnalazione</button>
+            <a class="btn" href="/">Annulla</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

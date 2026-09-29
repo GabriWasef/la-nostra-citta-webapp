@@ -1,0 +1,54 @@
+# Avvio completo (database + webapp):   docker compose up -d --build
+# Solo il database (app avviata con npm):  docker compose up -d mysql
+# I valori (DB_USER, DB_PASSWORD, DB_NAME, SESSION_SECRET, ...) sono letti dal file .env.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: lnc-mysql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: ${DB_NAME:-la_nostra_citta}
+      MYSQL_USER: ${DB_USER:-lnc_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Imposta DB_PASSWORD nel file .env}
+      TEST_DB_NAME: ${TEST_DB_NAME:-la_nostra_citta_test}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # Consente all'utente applicativo di creare trigger con il log binario attivo
+      - --log-bin-trust-function-creators=1
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Via TCP: durante l'inizializzazione MySQL gira senza rete, quindi il
+      # controllo passa solo quando il server definitivo è pronto.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  app:
+    build: .
+    container_name: lnc-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      HOST: 0.0.0.0
+      PORT: "3000"
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  mysql-data:
+  uploads:

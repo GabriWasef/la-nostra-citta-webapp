@@ -1,6 +1,7 @@
 # La Nostra Città, Il Nostro Futuro — Analisi tecnica
 
-Documento prodotto nella **Fase B (analisi)**, prima di qualsiasi implementazione.
+Documento prodotto nella **Fase B (analisi)**, prima di qualsiasi implementazione. I §1–§8 descrivono la situazione
+iniziale e il piano; lo stato dopo l'implementazione è riassunto nel **§9**.
 
 Materiale analizzato:
 
@@ -301,7 +302,9 @@ SQL puro. Lo schema resta controllabile riga per riga e coincide con la progetta
 
 Frontend e backend sono serviti **dalla stessa origine**. Per questo le sessioni sono la soluzione più sicura e semplice:
 
-- `express-session` + `express-mysql-session`: sessioni salvate in MySQL, revocabili subito (logout, sospensione);
+- `express-session` con uno store MySQL scritto nel progetto (`config/sessionStore.js`, tabella `sessione`): sessioni
+  revocabili subito (logout, sospensione). Il pacchetto `express-mysql-session` è stato scartato perché include una
+  versione vulnerabile di `mysql2`;
 - cookie `HttpOnly`, `SameSite=Lax`, `Secure` in produzione, durata limitata, rigenerazione dell'ID al login;
 - difesa CSRF: `SameSite=Lax` più verifica dell'header `Origin` sui metodi che modificano dati;
 - password con **Argon2id** (pacchetto `argon2`);
@@ -517,7 +520,7 @@ Ogni fase lascia il progetto avviabile.
 | 1 | Struttura e analisi | `docs/*`, `database/schema/*`, `.gitignore`, `README.md` | Import dei documenti; correzione di "PostgreSQL" | — | Nessuno | Documenti versionati; `.env` e `uploads/*` ignorati |
 | 2 | Configurazione Node.js | `package.json`, `server/src/app.js`, `server.js`, `config/env.js`, `.env.example`, `utils/*`, `middlewares/errorHandler.js` | Server Express, helmet, file statici, `/api/v1/health`, formato errori | express, helmet, zod, pino | Variabili mancanti | `npm run dev` avvia; health risponde 200 |
 | 3 | Collegamento MySQL | `config/db.js`, `scripts/migrate.js`, `scripts/seed.js`, `database/migrations/001–007`, `database/seeds/*`, `docker-compose.yml` | Pool, migrazioni con `DELIMITER`, correzioni P1–P7 e P10–P12 | mysql2 | Sintassi trigger, ordine migrazioni | `npm run db:migrate && npm run db:seed` su DB vuoto; health verifica il DB; test SQL dei trigger superati |
-| 4 | Autenticazione | `routes/auth.js`, `controllers/auth…`, `services/authService.js`, `repositories/utenteRepository.js`, `validators/auth.js`, `middlewares/auth.js`, `originCheck.js` | Registrazione, login, logout, `me`, sessioni MySQL, rate limit | argon2, express-session, express-mysql-session, express-rate-limit | Configurazione cookie, CSRF | Test: registrazione, e-mail duplicata → 409, login errato → 401, logout invalida la sessione |
+| 4 | Autenticazione | `routes/auth.js`, `controllers/auth…`, `services/authService.js`, `repositories/utenteRepository.js`, `validators/auth.js`, `middlewares/auth.js`, `originCheck.js` | Registrazione, login, logout, `me`, sessioni MySQL, rate limit | argon2, express-session, express-rate-limit | Configurazione cookie, CSRF | Test: registrazione, e-mail duplicata → 409, login errato → 401, logout invalida la sessione |
 | 5 | Utenti e ruoli | `middlewares/requireRole.js`, `routes/utenti.js`, `routes/admin/utenti.js`, `scripts/create-admin.js` | Profilo, disattivazione, gestione ruoli e sospensioni | — | Escalation di privilegi | Test: il cittadino riceve 403 su `/admin`; l'utente sospeso perde la sessione |
 | 6 | Quartieri e categorie | `routes/quartieri.js`, `routes/categorie.js`, `routes/stati.js`, service e repository | Elenchi pubblici; CRUD admin | — | Eliminazione di voci in uso (FK RESTRICT) | Elenchi funzionanti; eliminazione in uso → 409 |
 | 7 | Segnalazioni | `routes/segnalazioni.js`, `services/segnalazioneService.js`, `repositories/segnalazioneRepository.js`, `validators/segnalazione.js` | Creazione transazionale, elenco, dettaglio, le mie segnalazioni | — | Visibilità PRIVATA/ANONIMA | Una segnalazione senza allegato viene rifiutata; l'autore anonimo non è esposto |
@@ -533,9 +536,56 @@ Ogni fase lascia il progetto avviabile.
 
 ---
 
-## 8. Decisioni che restano aperte
+## 8. Decisioni prese
 
-1. Importare nel repository i documenti forniti (`analisi_requisiti_esercizio_1.md`, script SQL, eventualmente il `.docx`).
-2. Correggere nel documento dei requisiti il riferimento a PostgreSQL (§11).
-3. Applicare le correzioni al database come migrazioni, lasciando invariato lo script ufficiale.
-4. Usare MySQL locale o tramite `docker-compose.yml` nello sviluppo.
+Alla conferma di procedere sono state adottate le scelte proposte:
+
+1. i documenti forniti sono stati importati in `docs/` e `database/schema/`;
+2. il §11 dei requisiti ora indica MySQL 8.0+ al posto di PostgreSQL;
+3. le correzioni al database sono migrazioni separate e lo script ufficiale resta invariato;
+4. `docker-compose.yml` è disponibile come opzione per MySQL in sviluppo.
+
+---
+
+## 9. Stato dopo l'implementazione
+
+### 9.1 Conformità ai requisiti
+
+| Area | Stato | Dove |
+|---|---|---|
+| RF01 Registrazione (e-mail unica, Argon2id, consenso) | ✅ | `services/auth.service.js`, `registrazione.html` |
+| RF02 Login, logout, recupero password | ✅ (l'invio e-mail non è configurato: il link finisce nel log) | `auth.*`, `recupero-password.html` |
+| RF03 Ruoli e permessi | ✅ riletti a ogni richiesta | `middlewares/auth.js`, §5.4 |
+| RF04 Quartieri | ✅ elenco pubblico e CRUD admin | `catalogo.*`, `admin.html` |
+| RF05 Inserimento segnalazione | ✅ transazione unica con compensazione dei file | `services/segnalazione.service.js` |
+| RF06 Allegato obbligatorio e sicuro | ✅ applicazione + trigger (P1, P2 risolti) | `media.service.js`, migrazione 003 |
+| RF07 Categorie N:M | ✅ almeno una per pubblicare | migrazione 003, moderazione |
+| RF08 Consultazione, filtri, ricerca, mappa | ✅ FULLTEXT, paginazione, Leaflet | `segnalazione.repository.js`, `index.html`, `mappa.html` |
+| RF09 Sostegno e classifica | ✅ niente duplicati né autosostegno, conteggio reale (P3, P4 risolti) | migrazione 004, `classifica.html` |
+| RF10 Ciclo di vita e storico | ✅ macchina a stati, operatore e motivazione (P5, P6, P7 risolti) | `cicloVita.js`, migrazioni 002 e 005 |
+| RF11 Moderazione automatica | ✅ a regole, in tempo reale: blocca o segnala per revisione | `ai/moderazione.js` |
+| RF12 Classificazione | ✅ a regole, con affidabilità e conferma del moderatore | `ai/classificazione.js` |
+| RF13 Immagini/video ed EXIF | ✅ EXIF e controllo tecnico asincrono delle immagini; pertinenza e video da collegare a un modello | `ai/visione.js`, `ai/worker.js` |
+| RF14 Localizzazione | ✅ mappa, geolocalizzazione, GPS della foto con consenso | migrazione 008, `nuova-segnalazione.html` |
+| Sicurezza | ✅ Helmet/CSP, rate limit, controllo Origin, query parametrizzate, audit log | `middlewares/security.js`, migrazione 006 |
+| Privacy | ✅ informativa, anonimato, account anonimizzato, EXIF rimosso | `privacy.html`, `utente.service.js` |
+| Usabilità e accessibilità | ✅ mobile-first, tema scuro, errori per campo, tastiera, alternativa testuale alla mappa | `client/` |
+| Prestazioni | ✅ paginazione, indici, compressione immagini, coda asincrona; ⏳ cache della classifica | migrazione 007 |
+| Test | ✅ 54 test automatici su API e database | `server/tests/` |
+
+### 9.2 Verifiche eseguite
+
+- Migrazioni applicate su un database vuoto e su un database creato con lo script ufficiale (con dati).
+- `npm test`: 54 test superati su MySQL 8.0.46.
+- Percorso completo nel browser (Chromium) su desktop e mobile per cittadino, moderatore e amministratore:
+  nessun errore JavaScript né violazione della Content Security Policy.
+- `npm audit`: nessuna vulnerabilità nota.
+
+### 9.3 Limiti e passi successivi
+
+- Invio e-mail (SMTP) per il recupero password.
+- Ricodifica e rimozione dei metadati dei video (ffmpeg).
+- Modelli IA reali al posto dei provider a regole, per esempio un microservizio che implementi le stesse interfacce.
+- Object storage e antivirus: le interfacce (`storage`, `scansionaFile`) sono pronte.
+- Cache della classifica e delle statistiche, se il traffico lo richiederà.
+- Client mobile o desktop: si appoggerà alla stessa API aggiungendo un'autenticazione a token.
