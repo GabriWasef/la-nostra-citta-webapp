@@ -1,1 +1,68 @@
-<!doctype html><title>ok</title>
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Segnalazioni · La Nostra Città</title>
+  <meta name="description" content="Segnala i problemi del tuo quartiere, sostieni le proposte degli altri cittadini e costruisci le priorità di Milano.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="module" src="/js/pages/home.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <section class="hero" aria-labelledby="titolo-hero">
+        <h1 id="titolo-hero">La tua città, le tue priorità.</h1>
+        <p>Segnala un problema del tuo quartiere con una foto o un breve video, sostieni le proposte degli altri cittadini e aiuta il comitato <strong>Insieme per Milano</strong> a portare le priorità reali ai candidati Sindaco.</p>
+        <div class="azioni">
+          <a class="btn" href="/nuova-segnalazione">+ Fai una segnalazione</a>
+          <a class="btn btn-ghost" href="/classifica">Vedi la classifica</a>
+        </div>
+        <ul class="stats" id="statistiche" aria-label="Numeri della piattaforma"></ul>
+      </section>
+
+      <h2 class="visually-hidden">Cerca tra le segnalazioni</h2>
+      <form class="filtri" id="filtri" role="search">
+        <div class="field field-ricerca">
+          <label for="q">Cerca</label>
+          <input type="search" id="q" name="q" placeholder="Es. buca, lampione, parco…" maxlength="100">
+        </div>
+        <div class="field">
+          <label for="quartiere">Quartiere</label>
+          <select id="quartiere" name="quartiere"></select>
+        </div>
+        <div class="field">
+          <label for="categoria">Categoria</label>
+          <select id="categoria" name="categoria"></select>
+        </div>
+        <div class="field">
+          <label for="stato">Stato</label>
+          <select id="stato" name="stato"></select>
+        </div>
+        <div class="field">
+          <label for="ordina">Ordina per</label>
+          <select id="ordina" name="ordina">
+            <option value="recenti">Più recenti</option>
+            <option value="sostegni">Più sostenute</option>
+            <option value="meno_recenti">Meno recenti</option>
+          </select>
+        </div>
+      </form>
+
+      <section aria-labelledby="titolo-elenco">
+        <div class="risultati-info">
+          <h2 id="titolo-elenco" class="visually-hidden">Segnalazioni pubblicate</h2>
+          <p id="conteggio" aria-live="polite"></p>
+        </div>
+        <div id="elenco"></div>
+        <div id="paginazione"></div>
+      </section>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

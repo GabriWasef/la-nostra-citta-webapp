@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registrati · La Nostra Città</title>
+  <meta name="description" content="Crea il tuo profilo per partecipare.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="module" src="/js/pages/registrazione.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <div class="panel form-narrow">
+        <h1>Crea il tuo profilo</h1>
+        <p class="muted">Ogni segnalazione e ogni sostegno sono legati a un profilo verificato: così la piattaforma resta credibile.</p>
+        <form id="form-registrazione" novalidate>
+          <div class="field">
+            <label for="nome">Nome</label>
+            <input type="text" id="nome" name="nome" required minlength="2" maxlength="80" autocomplete="given-name">
+          </div>
+          <div class="field">
+            <label for="cognome">Cognome</label>
+            <input type="text" id="cognome" name="cognome" required minlength="2" maxlength="80" autocomplete="family-name">
+          </div>
+          <div class="field">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" name="email" required autocomplete="email" inputmode="email">
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required minlength="10" maxlength="128" autocomplete="new-password" aria-describedby="hint-password">
+            <span class="hint" id="hint-password">Almeno 10 caratteri, con almeno una lettera e un numero.</span>
+          </div>
+          <div class="field">
+            <label for="conferma">Conferma password</label>
+            <input type="password" id="conferma" name="conferma" required autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label for="id_quartiere_residenza">Quartiere di residenza <span class="opzionale">(facoltativo)</span></label>
+            <select id="id_quartiere_residenza" name="id_quartiere_residenza"></select>
+          </div>
+          <div class="field">
+            <label class="check">
+              <input type="checkbox" id="consenso_privacy" name="consenso_privacy" required>
+              <span>Ho letto l’<a href="/privacy" target="_blank" rel="noopener">informativa sulla privacy</a> e acconsento al trattamento dei miei dati.</span>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Registrati</button>
+        </form>
+        <p class="small">Hai già un account? <a href="/login">Accedi</a></p>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>

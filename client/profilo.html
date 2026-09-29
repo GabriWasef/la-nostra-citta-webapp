@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Il mio profilo · La Nostra Città</title>
+  <meta name="description" content="Gestisci il tuo profilo e le tue segnalazioni.">
+  <meta name="theme-color" content="#0e5a4b">
+  <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="module" src="/js/pages/profilo.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Vai al contenuto</a>
+  <header class="site-header" id="site-header"></header>
+  <main id="contenuto" tabindex="-1">
+    <div class="container">
+      <div class="page-header">
+        <h1>Il mio profilo</h1>
+        <p id="sottotitolo"></p>
+      </div>
+      <div class="due-colonne">
+        <section class="panel" aria-labelledby="t-dati">
+          <h2 id="t-dati">Dati personali</h2>
+          <form id="form-profilo" novalidate>
+            <div class="field"><label for="p-email">E-mail</label><input type="email" id="p-email" readonly aria-describedby="hint-email"><span class="hint" id="hint-email">L’e-mail non può essere modificata.</span></div>
+            <div class="field"><label for="p-nome">Nome</label><input type="text" id="p-nome" name="nome" required minlength="2" maxlength="80" autocomplete="given-name"></div>
+            <div class="field"><label for="p-cognome">Cognome</label><input type="text" id="p-cognome" name="cognome" required minlength="2" maxlength="80" autocomplete="family-name"></div>
+            <div class="field"><label for="p-quartiere">Quartiere di residenza</label><select id="p-quartiere" name="id_quartiere_residenza"></select></div>
+            <button type="submit" class="btn btn-primary">Salva</button>
+          </form>
+        </section>
+        <section class="panel" aria-labelledby="t-password">
+          <h2 id="t-password">Cambia password</h2>
+          <form id="form-password" novalidate>
+            <div class="field"><label for="password_attuale">Password attuale</label><input type="password" id="password_attuale" name="password_attuale" required autocomplete="current-password"></div>
+            <div class="field"><label for="nuova_password">Nuova password</label><input type="password" id="nuova_password" name="nuova_password" required minlength="10" autocomplete="new-password" aria-describedby="hint-nuova"><span class="hint" id="hint-nuova">Almeno 10 caratteri, con una lettera e un numero. Le altre sessioni aperte verranno chiuse.</span></div>
+            <button type="submit" class="btn btn-primary">Aggiorna password</button>
+          </form>
+        </section>
+      </div>
+
+      <section aria-labelledby="t-mie" class="stack spazio-sopra">
+        <h2 id="t-mie">Le mie segnalazioni</h2>
+        <div id="mie"></div>
+        <div id="paginazione"></div>
+      </section>
+
+      <section class="panel spazio-sopra" aria-labelledby="t-elimina">
+        <h2 id="t-elimina">Elimina il mio account</h2>
+        <p class="muted">I tuoi dati personali (nome, cognome, e-mail, quartiere) verranno anonimizzati e non potrai più accedere. Le segnalazioni già inviate resteranno, attribuite a “Utente Eliminato”.</p>
+        <form id="form-elimina" novalidate>
+          <div class="field"><label for="e-password">Password per confermare</label><input type="password" id="e-password" name="password" required autocomplete="current-password"></div>
+          <button type="submit" class="btn btn-danger">Elimina definitivamente l’account</button>
+        </form>
+      </section>
+    </div>
+  </main>
+  <footer class="site-footer" id="site-footer"></footer>
+</body>
+</html>
