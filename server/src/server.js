@@ -2,13 +2,22 @@ import { avviaWorker } from './ai/worker.js';
 import { createApp } from './app.js';
 import { closePool, pool } from './config/db.js';
 import { env } from './config/env.js';
+import { migrazioniInSospeso, verificaVersione } from './config/migrazioni.js';
 import { logger } from './utils/logger.js';
 
 async function avvia() {
   try {
-    await pool.query('SELECT 1');
+    const [[{ versione }]] = await pool.query('SELECT VERSION() AS versione');
+    verificaVersione(versione);
+    const mancanti = await migrazioniInSospeso(pool);
+    if (mancanti.length) {
+      throw new Error(
+        `il database non è aggiornato (${mancanti.length} migrazioni da applicare, da ${mancanti[0]}). ` +
+          'Esegui: npm run db:migrate && npm run db:seed',
+      );
+    }
   } catch (err) {
-    logger.fatal(`Impossibile collegarsi a MySQL (${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}): ${err.message}`);
+    logger.fatal(`Database ${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME} non utilizzabile: ${err.message}`);
     process.exit(1);
   }
 

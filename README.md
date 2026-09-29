@@ -51,6 +51,8 @@ Nel container `DB_HOST` punta automaticamente al servizio `mysql`, quindi il val
 
 ### Opzione B — Node.js in locale
 
+Servono Node.js 22.9 o superiore e **MySQL 8** (non MariaDB/XAMPP). Su Windows usa MySQL Community Server con MySQL Workbench, oppure solo il container `mysql` del `docker-compose.yml`.
+
 ```bash
 git clone https://github.com/GabriWasef/la-nostra-citta-webapp.git
 cd la-nostra-citta-webapp
@@ -199,6 +201,12 @@ Salvare anche la cartella `uploads/` (oppure il bucket, se si usa un object stor
 - **Con Docker:** usa il `Dockerfile` e il `docker-compose.yml` del progetto (`docker compose up -d --build`). Il `.dockerignore` esclude `node_modules` e le dipendenze vengono installate nell'immagine. Se usi un tuo Dockerfile, non copiare `node_modules` ed esegui `npm ci` nel container.
 - **Con la cartella del progetto montata nel container** (`volumes: - .:/app`): aggiungi anche un volume `- /app/node_modules`, così le dipendenze del container non vengono sostituite da quelle del computer, ed esegui `npm ci` nel container.
 - **Su un server:** non copiare `node_modules`, ma esegui `npm ci --omit=dev` sul server stesso. In alternativa, dentro l'ambiente che dà l'errore: `rm -rf node_modules && npm ci`.
+
+**`il database non è aggiornato … Esegui: npm run db:migrate && npm run db:seed`** all'avvio (nelle versioni precedenti: `Table '…' doesn't exist`): il database esiste ma lo schema non è stato creato. Esegui `npm run db:migrate` e `npm run db:seed`. Se il database era stato creato a mano con lo script ufficiale di `database/schema/`, `db:migrate` lo riconosce e applica solo le correzioni.
+
+**`Il server del database è MariaDB`**: il progetto richiede **MySQL 8.0.19 o superiore**. XAMPP e altri pacchetti simili includono MariaDB, che non supporta la collation `utf8mb4_0900_ai_ci` usata dallo schema. Installa MySQL Community Server 8 oppure usa `docker compose up -d mysql`.
+
+**Lettere accentate illeggibili nel terminale di Windows** (per esempio `Citt├á`): è solo la codifica della console. Esegui `chcp 65001` in PowerShell prima di `npm start`.
 
 **`You do not have the SUPER privilege and binary logging is enabled`** durante `npm run db:migrate`: abilita `log_bin_trust_function_creators` (vedi la sezione Database). Con il `docker-compose.yml` del progetto è già attivo.
 
