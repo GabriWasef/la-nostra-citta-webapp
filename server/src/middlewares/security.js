@@ -60,3 +60,10 @@ export const limiteUpload = limitatore({
   message: 'Hai inviato troppe segnalazioni nell’ultima ora. Riprova più tardi.',
   keyByUser: true,
 });
+
+export const limiteGeocodifica = limitatore({
+  windowMs: 60 * 1000,
+  limit: 30,
+  message: 'Troppe ricerche di indirizzi. Attendi un minuto.',
+  keyByUser: true,
+});

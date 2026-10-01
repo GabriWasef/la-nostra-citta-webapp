@@ -1,8 +1,8 @@
-import { api } from '../api.js';
+import { api, urlAllegato } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { $, aggiornaUrl, avviso, h, monta, opzioni, parametriUrl, plurale } from '../dom.js';
 import { initPage } from '../layout.js';
-import { coloreStato, creaMappa, marcatore } from '../mappa.js';
+import { coloreStato, creaMappa, marcatore, pulsantePosizione } from '../mappa.js';
 
 const form = $('#filtri');
 let mappa;
@@ -11,9 +11,13 @@ let livello;
 function popup(s) {
   return h(
     'div',
-    {},
+    { class: 'popup-segnalazione' },
+    s.copertina?.tipo_media === 'IMMAGINE'
+      ? h('img', { src: urlAllegato(s.copertina.id_allegato), alt: '', loading: 'lazy', width: 220, height: 130 })
+      : null,
     h('a', { href: `/segnalazione?id=${s.id_segnalazione}` }, s.titolo),
-    h('div', { class: 'small' }, `${s.quartiere} · ${s.stato.nome} · ${plurale(s.numero_sostegni, 'sostegno', 'sostegni')}`),
+    h('div', { class: 'small' }, [s.indirizzo, s.quartiere].filter(Boolean).join(' · ')),
+    h('div', { class: 'small' }, `${s.stato.nome} · ♥ ${plurale(s.numero_sostegni, 'sostegno', 'sostegni')}`),
   );
 }
 
@@ -28,6 +32,11 @@ async function carica() {
       return [s.latitudine, s.longitudine];
     });
     if (punti.length) mappa.fitBounds(punti, { padding: [30, 30], maxZoom: 15 });
+    $('#mappa-vuota')?.remove();
+    if (!punti.length) {
+      const vuota = h('div', { class: 'mappa-avviso', id: 'mappa-vuota', role: 'status' }, 'Nessuna segnalazione con posizione per questi filtri.');
+      mappa.getContainer().append(vuota);
+    }
     $('#conteggio').textContent = plurale(dati.length, 'segnalazione sulla mappa', 'segnalazioni sulla mappa');
     monta(
       $('#elenco-punti'),
@@ -56,6 +65,7 @@ async function main() {
   );
 
   mappa = creaMappa($('#mappa'));
+  pulsantePosizione(mappa);
   livello = window.L.layerGroup().addTo(mappa);
   form.addEventListener('change', carica);
   carica();

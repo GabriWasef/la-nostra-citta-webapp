@@ -30,7 +30,7 @@ export const nuovaSegnalazione = z
     indirizzo: testoOpzionale(255),
     latitudine: coordinata(-90, 90).default(null),
     longitudine: coordinata(-180, 180).default(null),
-    origine_coordinate: z.enum(['UTENTE', 'MAPPA']).default('MAPPA'),
+    origine_coordinate: z.enum(['UTENTE', 'MAPPA', 'GEOCODIFICA']).default('MAPPA'),
     usa_posizione_foto: booleanoForm.default(false),
   })
   .refine((d) => (d.latitudine === null) === (d.longitudine === null), {
