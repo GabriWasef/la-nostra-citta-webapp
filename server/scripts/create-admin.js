@@ -7,6 +7,7 @@
 import readline from 'node:readline';
 import { parseArgs } from 'node:util';
 import { closePool } from '../src/config/db.js';
+import { env } from '../src/config/env.js';
 import * as utenti from '../src/repositories/utente.repository.js';
 import { hashPassword } from '../src/services/auth.service.js';
 import { email as schemaEmail, nomePersona, password as schemaPassword } from '../src/validators/common.js';
@@ -73,7 +74,7 @@ async function main() {
     }
 
     await utenti.create({ nome, cognome, email, passwordHash: await hashPassword(password), ruolo: 'AMMINISTRATORE' });
-    console.log(`Amministratore ${email} creato. Ora puoi accedere da http://localhost:3000/login`);
+    console.log(`Amministratore ${email} creato. Ora puoi accedere da ${env.APP_ORIGIN}/login`);
   } finally {
     t.chiudi();
   }
