@@ -4,6 +4,7 @@ Piattaforma web del comitato cittadino **Insieme per Milano** per raccogliere se
 
 I cittadini registrati inseriscono segnalazioni con almeno un allegato multimediale e sostengono quelle degli altri. Il comitato le verifica, le approva e ne segue il ciclo di vita fino all'invio ai candidati. Moduli automatici (moderazione del testo, classificazione, EXIF, controllo delle immagini) aiutano i volontari, che restano sempre l'ultima parola.
 
+- **Guida passo passo per avviare il progetto su Windows: [`GUIDA-AVVIO.md`](GUIDA-AVVIO.md)**
 - Analisi dei requisiti: [`docs/analisi_requisiti_esercizio_1.md`](docs/analisi_requisiti_esercizio_1.md)
 - Analisi tecnica e stato del progetto: [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md)
 - Riferimento delle API REST: [`docs/api.md`](docs/api.md)
@@ -42,7 +43,7 @@ Il servizio `app` costruisce l'immagine (con `npm ci` eseguito **dentro** il con
 Comandi di gestione, eseguiti nel container:
 
 ```bash
-docker compose exec app node server/scripts/create-admin.js --email tu@esempio.it --nome Mario --cognome Rossi
+docker compose exec app node server/scripts/create-admin.js     # chiede e-mail, nome e password
 docker compose exec app node server/scripts/seed.js --demo     # richiede SEED_DEMO_PASSWORD in .env
 docker compose logs -f app
 ```
@@ -87,7 +88,7 @@ Poi applica lo schema e i dati iniziali:
 ```bash
 npm run db:migrate      # crea tabelle, trigger, viste e stati
 npm run db:seed         # categorie e quartieri iniziali
-npm run admin:create -- --email tu@esempio.it --nome Mario --cognome Rossi
+npm run admin:create    # chiede e-mail, nome, cognome e password
 ```
 
 Per provare la piattaforma con dati dimostrativi (5 utenti, 7 segnalazioni con immagini generate), imposta `SEED_DEMO_PASSWORD` in `.env` ed esegui:
@@ -117,7 +118,7 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 | `npm run db:reset` | **Svuota** il database e riapplica tutte le migrazioni (vietato in produzione) |
 | `npm run db:seed` | Carica categorie e quartieri (idempotente) |
 | `npm run db:seed:demo` | Dati di base + utenti e segnalazioni dimostrative |
-| `npm run admin:create -- --email … --nome … --cognome …` | Crea un amministratore o promuove un utente esistente |
+| `npm run admin:create` | Crea un amministratore (chiede i dati) o promuove un utente esistente |
 | `npm run worker` | Worker IA come processo separato (`-- --once` per svuotare la coda e uscire) |
 | `npm test` | Esegue i test sul database `TEST_DB_NAME`, che viene **svuotato** |
 
