@@ -5,10 +5,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import mysql from 'mysql2/promise';
-import { env, ROOT_DIR } from '../src/config/env.js';
+import { env } from '../src/config/env.js';
+import {
+  fileMigrazioni,
+  MIGRATIONS_DIR,
+  MIGRAZIONE_INIZIALE,
+  migrazioniApplicate,
+  schemaUfficialePresente,
+  verificaVersione,
+} from '../src/config/migrazioni.js';
 import { splitSqlStatements } from '../src/utils/sqlSplitter.js';
-
-const MIGRATIONS_DIR = path.join(ROOT_DIR, 'database/migrations');
 
 async function connessione(conDatabase = true) {
   return mysql.createConnection({
@@ -60,6 +66,8 @@ export async function migra({ fresh = false, log = console.log } = {}) {
   await creaDatabaseSeManca();
   const conn = await connessione();
   try {
+    const [[{ versione }]] = await conn.query('SELECT VERSION() AS versione');
+    verificaVersione(versione);
     await conn.query("SET time_zone = '+00:00'");
     if (fresh) {
       await svuotaDatabase(conn);
@@ -70,12 +78,17 @@ export async function migra({ fresh = false, log = console.log } = {}) {
       data_applicazione TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`);
 
-    const [righe] = await conn.query('SELECT nome FROM schema_migrazioni');
-    const applicate = new Set(righe.map((r) => r.nome));
-    const files = (await fs.readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith('.sql')).sort();
+    const applicate = await migrazioniApplicate(conn);
+    // Database creato eseguendo a mano lo script ufficiale: la 001 coincide con quello
+    // script, quindi la si registra come applicata e si procede con le correzioni.
+    if (!applicate.has(MIGRAZIONE_INIZIALE) && (await schemaUfficialePresente(conn))) {
+      await conn.query('INSERT INTO schema_migrazioni (nome) VALUES (?)', [MIGRAZIONE_INIZIALE]);
+      applicate.add(MIGRAZIONE_INIZIALE);
+      log(`Trovato lo schema creato con lo script ufficiale: ${MIGRAZIONE_INIZIALE} considerata già applicata.`);
+    }
 
     let nuove = 0;
-    for (const file of files) {
+    for (const file of await fileMigrazioni()) {
       if (applicate.has(file)) continue;
       log(`Applico ${file}...`);
       try {
@@ -83,7 +96,11 @@ export async function migra({ fresh = false, log = console.log } = {}) {
       } catch (err) {
         // In MySQL il DDL non è transazionale: una migrazione interrotta va corretta a mano
         // (oppure, in sviluppo, con npm run db:reset).
-        throw new Error(`Migrazione ${file} fallita: ${err.message}`);
+        const suggerimento =
+          err.errno === 1419
+            ? '\nEsegui come root: SET PERSIST log_bin_trust_function_creators = 1; poi npm run db:reset (in sviluppo).'
+            : '';
+        throw new Error(`Migrazione ${file} fallita: ${err.message}${suggerimento}`);
       }
       await conn.query('INSERT INTO schema_migrazioni (nome) VALUES (?)', [file]);
       nuove++;

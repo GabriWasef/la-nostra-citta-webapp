@@ -1,0 +1,4 @@
+# Gli script eseguiti dentro i container Linux devono avere terminazioni LF,
+# anche quando il repository è clonato su Windows (core.autocrlf=true):
+# con CRLF la shell fallisce con "/bin/sh^M: bad interpreter".
+*.sh text eol=lf

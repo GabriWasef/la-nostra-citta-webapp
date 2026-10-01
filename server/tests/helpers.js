@@ -16,8 +16,20 @@ export const PASSWORD = 'PasswordSicura1';
 let app;
 let hashComune;
 
+/**
+ * I test svuotano il database: si fermano se la configurazione non punta al
+ * database di test (per esempio se env.js è stato importato prima di setup-env.js).
+ */
+export function assicuraDatabaseDiTest() {
+  const atteso = process.env.TEST_DB_NAME || 'la_nostra_citta_test';
+  if (!env.isTest || env.DB_NAME !== atteso) {
+    throw new Error(`Rifiuto di svuotare "${env.DB_NAME}": i test devono usare il database "${atteso}".`);
+  }
+}
+
 /** Database di test pulito, con dati di riferimento, e app Express. */
 export async function avvia() {
+  assicuraDatabaseDiTest();
   await migra({ fresh: true, log: () => {} });
   await seedBase(() => {});
   app = createApp();

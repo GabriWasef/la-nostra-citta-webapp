@@ -104,6 +104,15 @@ describe('Autenticazione (RF02)', () => {
     await anonimo().post('/api/v1/auth/login').send({ email: u.email, password: 'NuovaPassword9' }).expect(200);
   });
 
+  test('stessa origine del server accettata anche se diversa da APP_ORIGIN (es. 127.0.0.1)', async () => {
+    const res = await anonimo()
+      .post('/api/v1/auth/login')
+      .set('Host', '127.0.0.1:3000')
+      .set('Origin', 'http://127.0.0.1:3000')
+      .send({ email: 'nessuno@test.it', password: 'Sbagliata123' });
+    assert.equal(res.status, 401, 'deve arrivare al controllo delle credenziali, non essere bloccata');
+  });
+
   test('richieste da un’origine non autorizzata → 403', async () => {
     const res = await anonimo().post('/api/v1/auth/login').set('Origin', 'https://sito-malevolo.example').send({ email: 'a@b.it', password: 'x' });
     assert.equal(res.status, 403);

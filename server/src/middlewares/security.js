@@ -21,7 +21,10 @@ export function originCheck(req, res, next) {
       origine = 'invalida';
     }
   }
-  if (origine && !consentite.includes(origine)) {
+  // Stessa origine della richiesta (es. http://127.0.0.1:3000 o l'IP del PC in rete locale):
+  // un sito esterno non può presentarsi con l'origine del server che sta chiamando.
+  const stessaOrigine = `${req.protocol}://${req.get('host')}`;
+  if (origine && origine !== stessaOrigine && !consentite.includes(origine)) {
     return next(new AppError(403, 'ORIGINE_NON_CONSENTITA', 'Richiesta proveniente da un’origine non autorizzata.'));
   }
   next();
