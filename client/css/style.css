@@ -1546,3 +1546,90 @@ td input {
 .spazio-sopra {
   margin-top: 32px;
 }
+
+/* ---------- Mappe ---------- */
+.mappa-scelta {
+  height: 340px;
+}
+
+.mappa-avviso {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: calc(100% - 24px);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.mappa-pulsante {
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgb(0 0 0 / 20%);
+  border-radius: 4px;
+  background: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.mappa-pulsante:hover {
+  background: #f4f4f4;
+}
+
+.popup-segnalazione {
+  display: grid;
+  gap: 4px;
+  max-width: 220px;
+}
+
+.popup-segnalazione img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.riga-ricerca {
+  display: flex;
+  gap: 8px;
+}
+
+.riga-ricerca input {
+  flex: 1;
+  min-width: 0;
+}
+
+.risultati-indirizzo {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.risultati-indirizzo button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.risultati-indirizzo button:hover,
+.risultati-indirizzo button:focus-visible {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+}

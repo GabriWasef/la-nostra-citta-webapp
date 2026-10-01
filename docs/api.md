@@ -90,10 +90,21 @@ Base: `/api/v1`. Richieste e risposte in JSON (tranne l'invio delle segnalazioni
 | `visibilita` | no | `PUBBLICA` (predefinita), `ANONIMA`, `PRIVATA` |
 | `indirizzo` | no | |
 | `latitudine`, `longitudine` | no | Da indicare insieme |
-| `origine_coordinate` | no | `MAPPA` (predefinita) o `UTENTE` |
+| `origine_coordinate` | no | `MAPPA` (predefinita), `UTENTE` o `GEOCODIFICA` |
 | `usa_posizione_foto` | no | `true` per usare il GPS EXIF della foto quando mancano le coordinate |
 
 La segnalazione nasce nello stato `INSERITA`. Il testo passa subito dal filtro di moderazione: con minacce o linguaggio d'odio la risposta è 422 e non viene salvato nulla. Risposta: 201 `{ segnalazione, categorie_suggerite }`.
+
+## Geocodifica 👤
+
+Ricerca di indirizzi a Milano tramite Nominatim di OpenStreetMap, chiamato dal server. Le richieste sono distanziate di almeno 1 secondo, i risultati restano in cache per 24 ore e ogni utente ha un limite di 30 richieste al minuto.
+
+| Metodo e percorso | Query | Risposta |
+|---|---|---|
+| `GET /geocodifica/cerca` | `q` (3–200 caratteri) | `{ dati: [{ etichetta, descrizione, indirizzo, latitudine, longitudine, quartiere }] }` (massimo 5 risultati) |
+| `GET /geocodifica/inversa` | `lat`, `lon` | `{ risultato: { … stessi campi … } }` oppure `{ risultato: null }` |
+
+`quartiere` è il quartiere della piattaforma che corrisponde alla zona restituita da OpenStreetMap (`{ id_quartiere, nome }`), oppure `null`. Se il servizio non è raggiungibile la risposta è 503 `GEOCODIFICA_NON_DISPONIBILE`.
 
 ## Moderazione 🛡
 

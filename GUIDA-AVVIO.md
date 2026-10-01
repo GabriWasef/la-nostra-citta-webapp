@@ -166,6 +166,19 @@ Quando compare il messaggio **`La Nostra Città in ascolto su http://localhost:3
 
 ---
 
+## La mappa
+
+La mappa usa **OpenStreetMap** (gratuito, nessuna chiave da configurare) e richiede la connessione a internet.
+
+- **Pagina "Mappa"**: mostra le segnalazioni pubblicate che hanno una posizione. Clicca un punto per vedere foto, stato e sostegni; il pulsante 📍 centra la mappa su di te.
+- **Nuova segnalazione**: scrivi l'indirizzo nel campo *"Cerca un indirizzo a Milano"* e premi Invio, oppure tocca la mappa nel punto esatto. Indirizzo e quartiere vengono compilati da soli; puoi trascinare il segnaposto per correggere il punto.
+
+Per verificare che la rete del PC raggiunga OpenStreetMap, apri nel browser <https://tile.openstreetmap.org/0/0/0.png>: deve comparire una piccola immagine del mondo.
+
+> La posizione del dispositivo ("📍 Usa la mia posizione") funziona solo aprendo il sito come `http://localhost:3000`: con l'indirizzo IP del PC (per esempio da un telefono) il browser la blocca per sicurezza. In quel caso cerca l'indirizzo o tocca la mappa.
+
+---
+
 ## Le volte successive
 
 Basta aprire PowerShell nella cartella del progetto e scrivere:
@@ -208,6 +221,8 @@ npm run db:migrate
 | `Migrazione ... fallita: Table '...' already exists` oppure altri errori di `db:migrate` dopo tentativi precedenti | Il database è rimasto a metà. Esegui `npm run db:reset` (**cancella tutti i dati**), poi `npm run db:seed` e ripeti i passi 5–7. |
 | `You do not have the SUPER privilege and binary logging is enabled` | Succede se in `DB_USER` non c'è `root`. Usa `root` (passo 3), oppure in MySQL Workbench, come root, esegui `SET PERSIST log_bin_trust_function_creators = 1;` e poi `npm run db:reset`. |
 | `EADDRINUSE: address already in use :::3000` | La porta 3000 è occupata (forse il server è già aperto in un'altra finestra). Chiudi l'altra finestra, oppure nel `.env` metti `PORT=3001` e `APP_ORIGIN=http://localhost:3001` e apri <http://localhost:3001>. |
+| Sulla mappa compare *"Impossibile caricare la mappa…"* | Il PC non raggiunge `tile.openstreetmap.org` (manca internet o la rete della scuola lo blocca). Prova il link di verifica nella sezione "La mappa"; se non si apre, chiedi al tecnico di sbloccare `tile.openstreetmap.org` e `nominatim.openstreetmap.org`. |
+| *"La ricerca degli indirizzi non è disponibile"* oppure *"…momentaneamente occupato"* | Il servizio di ricerca di OpenStreetMap non è raggiungibile o riceve troppe richieste dalla rete della scuola. Attendi qualche secondo e riprova, oppure tocca il punto direttamente sulla mappa. |
 | Lettere strane come `Citt├á` nel terminale | Solo un problema di visualizzazione: esegui `chcp 65001` prima di `npm start`. |
 | Il login riesce ma poi si torna "non collegati" | Nel `.env` deve esserci `NODE_ENV=development`. |
 | Hai dimenticato la password di un utente | Da **Accedi → Hai dimenticato la password?**: il link di recupero compare nella finestra di PowerShell dove gira il server (l'invio di e-mail non è configurato). |

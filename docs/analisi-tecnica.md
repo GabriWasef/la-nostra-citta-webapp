@@ -566,7 +566,7 @@ Alla conferma di procedere sono state adottate le scelte proposte:
 | RF11 Moderazione automatica | ✅ a regole, in tempo reale: blocca o segnala per revisione | `ai/moderazione.js` |
 | RF12 Classificazione | ✅ a regole, con affidabilità e conferma del moderatore | `ai/classificazione.js` |
 | RF13 Immagini/video ed EXIF | ✅ EXIF e controllo tecnico asincrono delle immagini; pertinenza e video da collegare a un modello | `ai/visione.js`, `ai/worker.js` |
-| RF14 Localizzazione | ✅ mappa, geolocalizzazione, GPS della foto con consenso | migrazione 008, `nuova-segnalazione.html` |
+| RF14 Localizzazione | ✅ mappa OpenStreetMap, ricerca indirizzi e indirizzo del punto (Nominatim, via server con limite di frequenza e cache), segnaposto trascinabile, geolocalizzazione, GPS della foto con consenso | migrazione 008, `services/geocodifica.service.js`, `nuova-segnalazione.html` |
 | Sicurezza | ✅ Helmet/CSP, rate limit, controllo Origin, query parametrizzate, audit log | `middlewares/security.js`, migrazione 006 |
 | Privacy | ✅ informativa, anonimato, account anonimizzato, EXIF rimosso | `privacy.html`, `utente.service.js` |
 | Usabilità e accessibilità | ✅ mobile-first, tema scuro, errori per campo, tastiera, alternativa testuale alla mappa | `client/` |

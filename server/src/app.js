@@ -28,7 +28,7 @@ export function createApp() {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
           styleSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org'],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https://tile.openstreetmap.org'],
           mediaSrc: ["'self'", 'blob:'],
           connectSrc: ["'self'"],
           objectSrc: ["'none'"],
@@ -37,6 +37,9 @@ export function createApp() {
         },
       },
       hsts: env.isProduction,
+      // Le tessere di OpenStreetMap vengono rifiutate ("403 Access blocked") se la
+      // richiesta non porta il Referer: si invia solo l'origine del sito, mai il percorso.
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }),
   );
 
