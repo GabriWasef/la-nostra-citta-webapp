@@ -117,14 +117,17 @@ Se `db:migrate` scrive `Database già aggiornato.`, va bene lo stesso: le tabell
 
 ## Passo 5 — Crea il tuo account di amministratore
 
+Scrivi questo comando **sostituendo e-mail, nome e cognome con i tuoi** (lascia tutto il resto uguale):
+
 ```powershell
-npm run admin:create
+node --env-file=.env server/scripts/create-admin.js --email tua@email.it --nome Mario --cognome Rossi
 ```
 
-Il programma ti fa alcune domande: e-mail, nome, cognome e password (almeno 10 caratteri, con lettere e numeri).
+Il programma chiede la **password** (le versioni più recenti la chiedono due volte, per conferma): almeno 10 caratteri, con lettere e numeri.
 **Mentre scrivi la password non compare nulla sullo schermo: è normale**, scrivila e premi Invio.
 
 Risultato atteso: `Amministratore ... creato.`
+Se compare un messaggio sulla password (troppo corta, senza numeri...), ripeti il comando con una password più robusta.
 
 ---
 
@@ -221,7 +224,7 @@ Copy-Item .env.example .env
 notepad .env                 # DB_USER=root, DB_PASSWORD, SESSION_SECRET, SEED_DEMO_PASSWORD
 npm run db:migrate
 npm run db:seed
-npm run admin:create
+node --env-file=.env server/scripts/create-admin.js --email tua@email.it --nome Mario --cognome Rossi
 npm run db:seed:demo         # facoltativo
 chcp 65001
 npm start                    # poi apri http://localhost:3000
