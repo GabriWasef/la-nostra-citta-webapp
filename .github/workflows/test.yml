@@ -1,0 +1,56 @@
+# Esegue i test automatici (node:test + supertest) su MySQL 8 a ogni push e pull request.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    env:
+      # Solo per i test: database usa e getta nel container del job.
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: la_nostra_citta
+      TEST_DB_NAME: la_nostra_citta_test
+      SESSION_SECRET: segreto-solo-per-i-test-automatici-della-ci-0123456789
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Controllo sintassi del frontend
+        run: for f in client/js/*.js client/js/*/*.js; do node --check "$f"; done
+
+      - run: npm test
+
+      - name: Vulnerabilità note nelle dipendenze
+        run: npm audit --omit=dev --audit-level=high
