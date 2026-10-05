@@ -61,28 +61,38 @@
 
         <section class="panel" aria-labelledby="sez-luogo">
           <h2 id="sez-luogo">3. Dove</h2>
+          <p class="hint">Cerca l’indirizzo oppure tocca la mappa nel punto esatto: indirizzo e quartiere vengono compilati automaticamente e puoi sempre correggerli.</p>
+          <div class="field ricerca-indirizzo">
+            <label for="cerca-indirizzo">Cerca un indirizzo a Milano</label>
+            <div class="riga-ricerca">
+              <input type="search" id="cerca-indirizzo" placeholder="Es. Via Padova 120" autocomplete="off" maxlength="200" aria-describedby="hint-cerca" aria-controls="risultati-indirizzo">
+              <button type="button" class="btn" id="btn-cerca-indirizzo">Cerca</button>
+            </div>
+            <span class="hint" id="hint-cerca">Scrivi via e numero civico, poi premi Invio o “Cerca”.</span>
+            <ul id="risultati-indirizzo" class="risultati-indirizzo" aria-live="polite"></ul>
+          </div>
           <div class="field">
-            <label for="id_quartiere">Quartiere interessato</label>
-            <select id="id_quartiere" name="id_quartiere" required></select>
+            <span class="label" id="etichetta-mappa">Posizione sulla mappa <span class="opzionale">(facoltativa)</span></span>
+            <div id="mappa-scelta" class="mappa mappa-scelta" role="application" aria-labelledby="etichetta-mappa"></div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-small" id="usa-posizione">📍 Usa la mia posizione</button>
+              <button type="button" class="btn btn-small" id="rimuovi-posizione" hidden>Rimuovi il punto</button>
+              <span class="small muted" id="coordinate" aria-live="polite">Nessun punto selezionato. Puoi trascinare il segnaposto per correggerlo.</span>
+            </div>
           </div>
           <div class="field">
             <label for="indirizzo">Indirizzo <span class="opzionale">(facoltativo)</span></label>
             <input type="text" id="indirizzo" name="indirizzo" maxlength="255" autocomplete="street-address" placeholder="Es. Via Padova 120">
           </div>
           <div class="field">
-            <span class="label" id="etichetta-mappa">Posizione sulla mappa <span class="opzionale">(facoltativa)</span></span>
-            <p class="hint">Tocca la mappa per indicare il punto esatto, oppure usa la tua posizione attuale.</p>
-            <div id="mappa-scelta" class="mappa" role="application" aria-labelledby="etichetta-mappa"></div>
-            <div class="form-actions">
-              <button type="button" class="btn btn-small" id="usa-posizione">📍 Usa la mia posizione</button>
-              <button type="button" class="btn btn-small" id="rimuovi-posizione" hidden>Rimuovi il punto</button>
-              <span class="small muted" id="coordinate" aria-live="polite"></span>
-            </div>
-            <label class="check">
-              <input type="checkbox" name="usa_posizione_foto" id="usa_posizione_foto" checked>
-              <span>Se non indico un punto, usa la posizione GPS contenuta nella foto (se presente). <span class="muted small">I metadati vengono comunque rimossi dalla foto pubblicata.</span></span>
-            </label>
+            <label for="id_quartiere">Quartiere interessato</label>
+            <select id="id_quartiere" name="id_quartiere" required aria-describedby="hint-quartiere"></select>
+            <span class="hint" id="hint-quartiere" aria-live="polite"></span>
           </div>
+          <label class="check">
+            <input type="checkbox" name="usa_posizione_foto" id="usa_posizione_foto" checked>
+            <span>Se non indico un punto, usa la posizione GPS contenuta nella foto (se presente). <span class="muted small">I metadati vengono comunque rimossi dalla foto pubblicata.</span></span>
+          </label>
         </section>
 
         <section class="panel" aria-labelledby="sez-visibilita">

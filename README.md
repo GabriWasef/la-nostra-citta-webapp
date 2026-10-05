@@ -13,7 +13,7 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 
 | Livello | Tecnologia |
 |---|---|
-| Frontend | HTML, CSS e JavaScript (ES modules) senza build; Leaflet + OpenStreetMap per le mappe |
+| Frontend | HTML, CSS e JavaScript (ES modules) senza build; Leaflet + OpenStreetMap per le mappe, Nominatim per la ricerca degli indirizzi |
 | Backend | Node.js 22, Express 5, API REST JSON su `/api/v1` |
 | Database | MySQL 8.0+ (InnoDB, utf8mb4) con `mysql2` e query parametrizzate, senza ORM |
 | Sicurezza | Sessioni lato server in MySQL con cookie `HttpOnly`/`SameSite`, Argon2id, Helmet (CSP), rate limiting, controllo `Origin`, validazione Zod |

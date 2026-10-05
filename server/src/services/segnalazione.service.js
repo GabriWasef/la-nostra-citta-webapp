@@ -91,14 +91,17 @@ export async function perMappa(filtri) {
     { ...filtri, soloConCoordinate: true, ordina: 'recenti', pagina: 1, perPagina: 1000 },
     { tipo: 'pubblico' },
   );
+  const copertine = await segnalazioneRepository.copertinePer(righe.map((r) => r.id_segnalazione));
   return righe.map((r) => ({
     id_segnalazione: r.id_segnalazione,
     titolo: r.titolo,
     latitudine: r.latitudine,
     longitudine: r.longitudine,
+    indirizzo: r.indirizzo,
     quartiere: r.quartiere,
     stato: { codice: r.codice_stato, nome: r.stato },
     numero_sostegni: r.numero_sostegni,
+    copertina: copertine.get(r.id_segnalazione) ?? null,
   }));
 }
 

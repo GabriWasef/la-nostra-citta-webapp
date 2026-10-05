@@ -31,6 +31,11 @@ const schema = z.object({
   MAX_IMAGE_MB: z.coerce.number().positive().default(10),
   MAX_VIDEO_MB: z.coerce.number().positive().default(50),
 
+  // Geocodifica (ricerca indirizzi) tramite Nominatim di OpenStreetMap, chiamato dal server.
+  GEOCODING_ENABLED: booleano.default(true),
+  GEOCODING_URL: z.url().default('https://nominatim.openstreetmap.org'),
+  GEOCODING_EMAIL: z.union([z.email(), z.literal('')]).default(''),
+
   AI_PROVIDER: z.enum(['regole', 'nessuno']).default('regole'),
   AI_WORKER_INTERVAL_MS: z.coerce.number().int().min(0).default(5000),
 

@@ -2,7 +2,7 @@ import { api, ApiError } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { $, h, monta, mostraErrori, opzioni, pulisciErrori } from '../dom.js';
 import { initPage } from '../layout.js';
-import { creaMappa } from '../mappa.js';
+import { creaMappa, geolocalizzazioneDisponibile } from '../mappa.js';
 
 // Stessi limiti del server (che resta comunque l'autorità finale).
 const MAX_FILE = 5;
@@ -19,6 +19,11 @@ let files = [];
 let posizione = null; // { lat, lng, origine }
 let mappa;
 let puntoMappa;
+let quartieri = [];
+// Indirizzo e quartiere scritti/scelti a mano non vengono sovrascritti dalla mappa.
+let indirizzoManuale = false;
+let quartiereManuale = false;
+let richiestaInversa = 0;
 
 // ---------- Contatori di caratteri ----------
 
@@ -99,45 +104,154 @@ function preparaUpload() {
   });
 }
 
-// ---------- Posizione ----------
+// ---------- Posizione e indirizzo ----------
 
-function impostaPosizione(lat, lng, origine) {
+function mostraCoordinate(testo) {
+  $('#coordinate').textContent = testo;
+}
+
+function impostaPosizione(lat, lng, origine, { centra = false } = {}) {
   posizione = { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)), origine };
-  if (puntoMappa) puntoMappa.setLatLng([lat, lng]);
-  else puntoMappa = window.L.marker([lat, lng], { keyboard: false }).addTo(mappa);
-  $('#coordinate').textContent = `Punto selezionato: ${posizione.lat}, ${posizione.lng}`;
+  if (puntoMappa) {
+    puntoMappa.setLatLng([lat, lng]);
+  } else {
+    puntoMappa = window.L.marker([lat, lng], { draggable: true, keyboard: false, title: 'Trascina per correggere il punto' }).addTo(mappa);
+    puntoMappa.on('dragend', () => {
+      const { lat: nLat, lng: nLng } = puntoMappa.getLatLng();
+      impostaPosizione(nLat, nLng, 'MAPPA');
+      completaDaPunto(nLat, nLng);
+    });
+  }
+  if (centra) mappa.setView([lat, lng], Math.max(mappa.getZoom(), 17));
+  mostraCoordinate(`Punto selezionato: ${posizione.lat}, ${posizione.lng}`);
   $('#rimuovi-posizione').hidden = false;
+}
+
+/** Compila indirizzo e quartiere dal risultato della geocodifica, senza toccare ciò che l'utente ha scritto. */
+function applicaRisultato(r) {
+  if (r.indirizzo && !indirizzoManuale) form.indirizzo.value = r.indirizzo;
+  if (r.quartiere && !quartiereManuale && quartieri.some((q) => q.id_quartiere === r.quartiere.id_quartiere)) {
+    form.id_quartiere.value = String(r.quartiere.id_quartiere);
+    $('#hint-quartiere').textContent = `Impostato in base al punto sulla mappa: ${r.quartiere.nome}. Puoi cambiarlo.`;
+  }
+  if (posizione) mostraCoordinate(`Punto selezionato: ${r.etichetta}`);
+}
+
+/** Indirizzo del punto toccato o trascinato sulla mappa (geocodifica inversa). */
+async function completaDaPunto(lat, lng) {
+  const numero = ++richiestaInversa;
+  try {
+    const { risultato } = await api.get('/geocodifica/inversa', { lat: lat.toFixed(6), lon: lng.toFixed(6) });
+    // Se nel frattempo è stato scelto un altro punto, questa risposta non serve più.
+    if (numero === richiestaInversa && risultato) applicaRisultato(risultato);
+  } catch {
+    // La geocodifica è solo un aiuto: il punto resta valido anche senza indirizzo.
+  }
+}
+
+async function cercaIndirizzo() {
+  const campo = $('#cerca-indirizzo');
+  const lista = $('#risultati-indirizzo');
+  const testo = campo.value.trim();
+  if (testo.length < 3) {
+    monta(lista, h('li', { class: 'muted small' }, 'Scrivi almeno 3 caratteri.'));
+    return;
+  }
+  const bottone = $('#btn-cerca-indirizzo');
+  bottone.disabled = true;
+  monta(lista, h('li', { class: 'muted small' }, 'Ricerca in corso…'));
+  try {
+    const { dati } = await api.get('/geocodifica/cerca', { q: testo });
+    if (!dati.length) {
+      monta(lista, h('li', { class: 'muted small' }, 'Nessun indirizzo trovato a Milano. Prova a scriverlo in un altro modo, oppure tocca il punto sulla mappa.'));
+      return;
+    }
+    monta(
+      lista,
+      dati.map((r) =>
+        h(
+          'li',
+          {},
+          h(
+            'button',
+            {
+              type: 'button',
+              on: {
+                click: () => {
+                  ++richiestaInversa;
+                  impostaPosizione(r.latitudine, r.longitudine, 'GEOCODIFICA', { centra: true });
+                  if (r.indirizzo) indirizzoManuale = false;
+                  applicaRisultato(r);
+                  monta(lista);
+                  campo.value = '';
+                },
+              },
+            },
+            h('strong', {}, r.etichetta),
+            h('span', { class: 'small muted' }, r.descrizione),
+          ),
+        ),
+      ),
+    );
+  } catch (err) {
+    monta(lista, h('li', { class: 'field-error' }, err.message));
+  } finally {
+    bottone.disabled = false;
+  }
 }
 
 function preparaMappa() {
   mappa = creaMappa($('#mappa-scelta'), { zoom: 12 });
-  mappa.on('click', (e) => impostaPosizione(e.latlng.lat, e.latlng.lng, 'MAPPA'));
+  mappa.on('click', (e) => {
+    impostaPosizione(e.latlng.lat, e.latlng.lng, 'MAPPA');
+    completaDaPunto(e.latlng.lat, e.latlng.lng);
+  });
+
+  form.indirizzo.addEventListener('input', () => {
+    indirizzoManuale = form.indirizzo.value.trim() !== '';
+  });
+  form.id_quartiere.addEventListener('change', () => {
+    quartiereManuale = true;
+    $('#hint-quartiere').textContent = '';
+  });
+
+  $('#btn-cerca-indirizzo').addEventListener('click', cercaIndirizzo);
+  $('#cerca-indirizzo').addEventListener('keydown', (e) => {
+    // Invio nel campo di ricerca cerca l'indirizzo invece di inviare il modulo.
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      cercaIndirizzo();
+    }
+  });
 
   $('#rimuovi-posizione').addEventListener('click', () => {
+    ++richiestaInversa;
     posizione = null;
     puntoMappa?.remove();
     puntoMappa = null;
-    $('#coordinate').textContent = 'Nessun punto selezionato.';
+    mostraCoordinate('Nessun punto selezionato.');
     $('#rimuovi-posizione').hidden = true;
   });
 
   const bottone = $('#usa-posizione');
-  if (!('geolocation' in navigator)) {
-    bottone.hidden = true;
+  if (!geolocalizzazioneDisponibile()) {
+    // Su http con un indirizzo diverso da localhost il browser non concede la posizione.
+    bottone.disabled = true;
+    bottone.title = 'Disponibile solo aprendo il sito da http://localhost o in HTTPS';
     return;
   }
   bottone.addEventListener('click', () => {
     bottone.disabled = true;
-    $('#coordinate').textContent = 'Ricerca della posizione…';
+    mostraCoordinate('Ricerca della posizione…');
     navigator.geolocation.getCurrentPosition(
       (p) => {
         bottone.disabled = false;
-        impostaPosizione(p.coords.latitude, p.coords.longitude, 'UTENTE');
-        mappa.setView([p.coords.latitude, p.coords.longitude], 17);
+        impostaPosizione(p.coords.latitude, p.coords.longitude, 'UTENTE', { centra: true });
+        completaDaPunto(p.coords.latitude, p.coords.longitude);
       },
       () => {
         bottone.disabled = false;
-        $('#coordinate').textContent = 'Posizione non disponibile: seleziona il punto sulla mappa.';
+        mostraCoordinate('Posizione non disponibile: cerca l’indirizzo o tocca il punto sulla mappa.');
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
@@ -205,7 +319,8 @@ async function invia(e) {
 
 async function main() {
   const utente = await initPage({ attiva: '/nuova-segnalazione', richiedeAccesso: true });
-  const [quartieri, categorie] = await Promise.all([catalogo.quartieri(), catalogo.categorie()]);
+  let categorie;
+  [quartieri, categorie] = await Promise.all([catalogo.quartieri(), catalogo.categorie()]);
   opzioni($('#id_quartiere'), quartieri, {
     valore: 'id_quartiere',
     etichetta: 'nome',
