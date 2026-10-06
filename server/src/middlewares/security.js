@@ -1,5 +1,7 @@
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
+import { pool } from '../config/db.js';
 import { env } from '../config/env.js';
+import { MySqlRateLimitStore } from '../config/rateLimitStore.js';
 import { AppError } from '../utils/AppError.js';
 
 const METODI_SICURI = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -30,7 +32,12 @@ export function originCheck(req, res, next) {
   next();
 }
 
-function limitatore({ windowMs, limit, message, keyByUser = false }) {
+/**
+ * @param persistente true per i limiti che proteggono operazioni sensibili (accesso, upload,
+ *   ricerche): con RATE_LIMIT_STORE=mysql il conteggio è condiviso tra le istanze. Il limite
+ *   generale dell'API resta in memoria, per non aggiungere query a ogni richiesta.
+ */
+function limitatore({ nome, windowMs, limit, message, keyByUser = false, persistente = false }) {
   return rateLimit({
     windowMs,
     limit,
@@ -38,23 +45,31 @@ function limitatore({ windowMs, limit, message, keyByUser = false }) {
     legacyHeaders: false,
     skip: () => !env.RATE_LIMIT_ENABLED,
     keyGenerator: keyByUser ? (req) => (req.user ? `u${req.user.id_utente}` : ipKeyGenerator(req.ip)) : undefined,
+    store: persistente && env.rateLimitStore === 'mysql' ? new MySqlRateLimitStore(pool, nome) : undefined,
+    // Se il database non risponde, la richiesta non viene bloccata dal limitatore.
+    passOnStoreError: true,
     handler: (req, res, next) => next(new AppError(429, 'TROPPE_RICHIESTE', message)),
   });
 }
 
 export const limiteApi = limitatore({
+  nome: 'api',
   windowMs: 60 * 1000,
   limit: 300,
   message: 'Troppe richieste. Riprova tra un minuto.',
 });
 
 export const limiteAuth = limitatore({
+  nome: 'auth',
+  persistente: true,
   windowMs: 15 * 60 * 1000,
   limit: 20,
   message: 'Troppi tentativi. Riprova tra qualche minuto.',
 });
 
 export const limiteUpload = limitatore({
+  nome: 'segnalazioni',
+  persistente: true,
   windowMs: 60 * 60 * 1000,
   limit: 20,
   message: 'Hai inviato troppe segnalazioni nell’ultima ora. Riprova più tardi.',
@@ -62,8 +77,20 @@ export const limiteUpload = limitatore({
 });
 
 export const limiteGeocodifica = limitatore({
+  nome: 'geocodifica',
+  persistente: true,
   windowMs: 60 * 1000,
   limit: 30,
   message: 'Troppe ricerche di indirizzi. Attendi un minuto.',
+  keyByUser: true,
+});
+
+/** Autorizzazioni di caricamento diretto degli allegati (una per file). */
+export const limiteTokenAllegati = limitatore({
+  nome: 'token-allegati',
+  persistente: true,
+  windowMs: 60 * 60 * 1000,
+  limit: 60,
+  message: 'Troppi caricamenti di file nell’ultima ora. Riprova più tardi.',
   keyByUser: true,
 });

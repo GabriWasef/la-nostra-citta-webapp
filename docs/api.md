@@ -62,6 +62,7 @@ Base: `/api/v1`. Richieste e risposte in JSON (tranne l'invio delle segnalazioni
 | `GET /stati` | 🔓 | `codice`, `nome`, `pubblica`, `finale`, `transizioni` ammesse |
 | `GET /statistiche` | 🔓 | Totali pubblici, per stato e per categoria |
 | `GET /health` | 🔓 | Stato del server e del database |
+| `GET /config` | 🔓 | `{ caricamentoDiretto, maxFiles, maxImageMb, maxVideoMb }`: dice al client se gli allegati vanno caricati direttamente sull'archivio (Vercel) o nel modulo |
 
 ## Segnalazioni
 
@@ -92,8 +93,13 @@ Base: `/api/v1`. Richieste e risposte in JSON (tranne l'invio delle segnalazioni
 | `latitudine`, `longitudine` | no | Da indicare insieme |
 | `origine_coordinate` | no | `MAPPA` (predefinita), `UTENTE` o `GEOCODIFICA` |
 | `usa_posizione_foto` | no | `true` per usare il GPS EXIF della foto quando mancano le coordinate |
+| `allegati_blob` | alternativa ad `allegati` | Solo con `caricamentoDiretto` (Vercel): corpo JSON con `[{ pathname, nome }]` dei file già caricati dal browser sull'archivio, ottenuti con `POST /allegati/upload`. Il server li scarica, li verifica e li ricodifica come i file del modulo |
 
 La segnalazione nasce nello stato `INSERITA`. Il testo passa subito dal filtro di moderazione: con minacce o linguaggio d'odio la risposta è 422 e non viene salvato nulla. Risposta: 201 `{ segnalazione, categorie_suggerite }`.
+
+### `POST /allegati/upload` 👤
+
+Usato solo quando `GET /config` indica `caricamentoDiretto: true` (Vercel). Il browser, con la libreria `@vercel/blob/client`, chiede qui un token di caricamento a scadenza breve (30 minuti) e carica il file direttamente nell'archivio privato, saltando il limite di 4,5 MB delle richieste alle funzioni. Il percorso deve essere `tmp/<id utente>/<nome>.<jpg|png|webp|mp4|mov|webm>`; tipi e dimensioni sono limitati come per il modulo. Limite: 60 token all'ora per utente. I file temporanei non usati vengono eliminati dalla manutenzione dopo 24 ore.
 
 ## Geocodifica 👤
 
@@ -145,3 +151,10 @@ L'elenco esatto è restituito da `GET /stati` (campo `transizioni`) ed è defini
 | `POST /admin/categorie` · `PATCH /admin/categorie/:id` · `DELETE /admin/categorie/:id` | `nome`, `descrizione?` |
 | `PATCH /admin/stati/:id` | `nome?`, `descrizione?` (codici e regole sono fissi) |
 | `GET /admin/log` | `pagina`, `perPagina` |
+| `GET /admin/diagnostica` | Controlli di database (versione, TLS), migrazioni, archivio (scrittura, lettura, link firmato, eliminazione), ricerca indirizzi e configurazione. Risposta `{ ambiente, controlli: [{ nome, ok, dettaglio }], ok }` |
+
+## Interno (Vercel Cron)
+
+| Metodo e percorso | Note |
+|---|---|
+| `GET /interno/manutenzione` | Richiede `Authorization: Bearer <CRON_SECRET>` (404 se `CRON_SECRET` non è impostato). Elabora le analisi in coda, elimina sessioni, limiti di richieste e token di recupero scaduti e i file temporanei di caricamento più vecchi di 24 ore. Chiamato ogni giorno da Vercel Cron |

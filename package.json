@@ -16,9 +16,14 @@
     "db:seed:demo": "node --env-file-if-exists=.env server/scripts/seed.js --demo",
     "admin:create": "node --env-file-if-exists=.env server/scripts/create-admin.js",
     "worker": "node --env-file-if-exists=.env server/scripts/worker.js",
-    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 \"server/tests/**/*.test.js\""
+    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 \"server/tests/**/*.test.js\"",
+    "build:vercel": "node server/scripts/build-vercel.js",
+    "db:migrate:remoto": "node --env-file=.env.production server/scripts/migrate.js",
+    "admin:create:remoto": "node --env-file=.env.production server/scripts/create-admin.js"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.0",
+    "@vercel/functions": "^3.9.11",
     "argon2": "^0.45.1",
     "cors": "^2.8.6",
     "exifr": "^7.1.3",
@@ -35,6 +40,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "supertest": "^7.3.0"
   },
   "allowScripts": {

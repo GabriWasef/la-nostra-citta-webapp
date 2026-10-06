@@ -1,18 +1,18 @@
 import mysql from 'mysql2/promise';
+import { opzioniMysql } from './dbOptions.js';
 import { env } from './env.js';
 
 export const pool = mysql.createPool({
-  host: env.DB_HOST,
-  port: env.DB_PORT,
-  user: env.DB_USER,
-  password: env.DB_PASSWORD,
-  database: env.DB_NAME,
+  ...opzioniMysql(),
   connectionLimit: env.DB_CONNECTION_LIMIT,
   waitForConnections: true,
-  charset: 'utf8mb4_0900_ai_ci',
-  timezone: 'Z',
   supportBigNumbers: true,
   decimalNumbers: true,
+  // Le funzioni serverless restano "congelate" tra una richiesta e l'altra: le connessioni
+  // inattive si chiudono presto e le altre restano vive, così non si usano connessioni già cadute.
+  idleTimeout: env.isVercel ? 20_000 : 60_000,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10_000,
 });
 
 // Tutte le date sono salvate e lette in UTC.

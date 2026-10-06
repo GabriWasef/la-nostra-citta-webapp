@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import mysql from 'mysql2/promise';
+import { opzioniMysql } from '../src/config/dbOptions.js';
 import { env } from '../src/config/env.js';
 import {
   fileMigrazioni,
@@ -17,15 +18,7 @@ import {
 import { splitSqlStatements } from '../src/utils/sqlSplitter.js';
 
 async function connessione(conDatabase = true) {
-  return mysql.createConnection({
-    host: env.DB_HOST,
-    port: env.DB_PORT,
-    user: env.DB_USER,
-    password: env.DB_PASSWORD,
-    database: conDatabase ? env.DB_NAME : undefined,
-    charset: 'utf8mb4_0900_ai_ci',
-    timezone: 'Z',
-  });
+  return mysql.createConnection(opzioniMysql({ conDatabase }));
 }
 
 async function creaDatabaseSeManca() {
@@ -35,8 +28,8 @@ async function creaDatabaseSeManca() {
       `CREATE DATABASE IF NOT EXISTS \`${env.DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`,
     );
   } catch (err) {
-    // L'utente applicativo potrebbe non avere il privilegio CREATE: il database va creato a mano.
-    if (err.code !== 'ER_DBACCESS_DENIED_ERROR') throw err;
+    // Sui MySQL gestiti l'utente non ha il privilegio CREATE: il database esiste già, creato dal provider.
+    if (!['ER_DBACCESS_DENIED_ERROR', 'ER_SPECIFIC_ACCESS_DENIED_ERROR'].includes(err.code)) throw err;
   } finally {
     await conn.end();
   }

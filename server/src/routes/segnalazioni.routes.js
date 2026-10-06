@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import { autorizzaCaricamento } from '../controllers/allegati.controller.js';
 import * as c from '../controllers/segnalazione.controller.js';
 import { requireAuth } from '../middlewares/auth.js';
-import { limiteUpload } from '../middlewares/security.js';
+import { limiteTokenAllegati, limiteUpload } from '../middlewares/security.js';
 import { uploadAllegati } from '../middlewares/upload.js';
 import { validate } from '../middlewares/validate.js';
 import { paramsId } from '../validators/common.js';
@@ -27,3 +28,7 @@ segnalazioniRouter.delete('/segnalazioni/:id/sostegno', requireAuth, validate({ 
 
 segnalazioniRouter.get('/classifica', validate({ query: s.filtriClassifica }), c.classifica);
 segnalazioniRouter.get('/allegati/:id', validate({ params: paramsId }), c.allegato);
+
+// Caricamento diretto dal browser sull'archivio (Vercel Blob). L'accesso è verificato
+// dentro l'handler: la stessa rotta riceve anche le notifiche firmate dall'archivio.
+segnalazioniRouter.post('/allegati/upload', limiteTokenAllegati, autorizzaCaricamento);

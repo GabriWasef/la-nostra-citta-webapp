@@ -1,13 +1,15 @@
 import { api, ApiError } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { $, h, monta, mostraErrori, opzioni, pulisciErrori } from '../dom.js';
+import { caricaAllegatiDiretti } from '../caricamento.js';
 import { initPage } from '../layout.js';
 import { creaMappa, geolocalizzazioneDisponibile } from '../mappa.js';
 
-// Stessi limiti del server (che resta comunque l'autorità finale).
-const MAX_FILE = 5;
+// Limiti del server (che resta comunque l'autorità finale): i valori veri arrivano da /api/v1/config.
+let MAX_FILE = 5;
 const MAX_CATEGORIE = 5;
 const LIMITI_MB = { IMMAGINE: 10, VIDEO: 50 };
+let caricamentoDiretto = false; // true su Vercel: gli allegati vanno prima sull'archivio
 const TIPI = {
   jpg: 'IMMAGINE', jpeg: 'IMMAGINE', png: 'IMMAGINE', webp: 'IMMAGINE',
   mp4: 'VIDEO', mov: 'VIDEO', webm: 'VIDEO',
@@ -283,30 +285,43 @@ async function invia(e) {
   }
   pulisciErrori(form);
 
-  const dati = new FormData();
-  for (const campo of ['titolo', 'descrizione', 'id_quartiere', 'indirizzo', 'visibilita']) {
-    dati.append(campo, form.elements[campo].value);
-  }
-  new FormData(form).getAll('categorie').forEach((c) => dati.append('categorie', c));
-  dati.append('usa_posizione_foto', form.usa_posizione_foto.checked ? 'true' : 'false');
-  if (posizione) {
-    dati.append('latitudine', posizione.lat);
-    dati.append('longitudine', posizione.lng);
-    dati.append('origine_coordinate', posizione.origine);
-  }
-  files.forEach((f) => dati.append('allegati', f, f.name));
+  const campi = {
+    titolo: form.titolo.value,
+    descrizione: form.descrizione.value,
+    id_quartiere: form.id_quartiere.value,
+    indirizzo: form.indirizzo.value,
+    visibilita: form.visibilita.value,
+    categorie: new FormData(form).getAll('categorie'),
+    usa_posizione_foto: form.usa_posizione_foto.checked,
+  };
+  if (posizione) Object.assign(campi, { latitudine: posizione.lat, longitudine: posizione.lng, origine_coordinate: posizione.origine });
 
   const bottone = $('[type="submit"]', form);
   const progresso = $('#progresso');
   const barra = progresso.firstElementChild;
+  const avanzamento = (frazione) => {
+    barra.style.width = `${Math.round(frazione * 100)}%`;
+  };
   bottone.disabled = true;
   bottone.textContent = 'Invio in corso…';
   progresso.hidden = false;
   try {
-    const { segnalazione } = await api.upload('/segnalazioni', dati, (p) => {
-      barra.style.width = `${Math.round(p * 100)}%`;
-    });
-    window.location.href = `/segnalazione?id=${segnalazione.id_segnalazione}&creata=1`;
+    let risposta;
+    if (caricamentoDiretto) {
+      // 1) i file vanno direttamente sull'archivio (fino al 90%), 2) si invia la segnalazione con i loro percorsi.
+      const allegati_blob = await caricaAllegatiDiretti(files, utente, (f) => avanzamento(f * 0.9));
+      avanzamento(0.95);
+      risposta = await api.post('/segnalazioni', { ...campi, allegati_blob });
+    } else {
+      const dati = new FormData();
+      for (const [nome, valore] of Object.entries(campi)) {
+        if (Array.isArray(valore)) valore.forEach((v) => dati.append(nome, v));
+        else dati.append(nome, String(valore));
+      }
+      files.forEach((f) => dati.append('allegati', f, f.name));
+      risposta = await api.upload('/segnalazioni', dati, avanzamento);
+    }
+    window.location.href = `/segnalazione?id=${risposta.segnalazione.id_segnalazione}&creata=1`;
   } catch (err) {
     progresso.hidden = true;
     barra.style.width = '0';
@@ -317,8 +332,19 @@ async function invia(e) {
   }
 }
 
+let utente;
+
 async function main() {
-  const utente = await initPage({ attiva: '/nuova-segnalazione', richiedeAccesso: true });
+  utente = await initPage({ attiva: '/nuova-segnalazione', richiedeAccesso: true });
+  try {
+    const config = await catalogo.configurazione();
+    MAX_FILE = config.maxFiles;
+    LIMITI_MB.IMMAGINE = config.maxImageMb;
+    LIMITI_MB.VIDEO = config.maxVideoMb;
+    caricamentoDiretto = config.caricamentoDiretto;
+  } catch {
+    // Con la configurazione non raggiungibile restano i valori predefiniti: il server controlla comunque.
+  }
   let categorie;
   [quartieri, categorie] = await Promise.all([catalogo.quartieri(), catalogo.categorie()]);
   opzioni($('#id_quartiere'), quartieri, {

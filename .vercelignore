@@ -1,0 +1,13 @@
+# File non necessari al deploy (riducono i tempi di caricamento).
+uploads
+docs
+public
+.env
+.env.*
+!.env.example
+Dockerfile
+docker-compose.yml
+.dockerignore
+database/docker-init
+*.md
+!README.md
