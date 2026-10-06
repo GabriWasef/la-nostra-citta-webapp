@@ -60,6 +60,13 @@ describe('vercel.json', () => {
   });
 });
 
+describe('package.json', () => {
+  test('gli strumenti della build stanno in dependencies (Vercel con NODE_ENV=production non installa le devDependencies)', async () => {
+    const pkg = JSON.parse(await fs.readFile(path.join(ROOT_DIR, 'package.json'), 'utf8'));
+    assert.ok(pkg.dependencies.esbuild, 'esbuild');
+  });
+});
+
 describe('Cartella statica generata (npm run build:vercel)', () => {
   before(async () => {
     await preparaPublic({ log: () => {} });
