@@ -188,6 +188,60 @@ async function pannelloModerazione() {
     });
   });
 
+  // Visibilità sul sito (nascondere è reversibile) ed eliminazione definitiva
+  const campoMotivo = (idCampo, etichetta) =>
+    h('div', { class: 'field' }, h('label', { for: idCampo }, etichetta), h('textarea', { id: idCampo, name: 'motivazione', maxlength: 500, rows: 2, required: true }));
+
+  const formVisibilita = h(
+    'form',
+    { novalidate: true },
+    s.nascosta
+      ? [
+          avviso('warning', h('strong', {}, 'La segnalazione è nascosta. '), `Non compare agli altri utenti${s.motivo_nascondimento ? `. Motivo: ${s.motivo_nascondimento}` : '.'}`),
+          h('button', { type: 'submit', class: 'btn btn-primary' }, 'Rendi di nuovo visibile'),
+        ]
+      : [
+          h('p', { class: 'small muted' }, 'Una segnalazione nascosta sparisce da elenchi, classifica e mappa e non si può più sostenere. La vedono solo l’autore e il comitato. Si può ripristinare in ogni momento.'),
+          campoMotivo('m-nascondi', 'Motivo (visibile all’autore e al comitato)'),
+          h('button', { type: 'submit', class: 'btn' }, 'Nascondi dal sito'),
+        ],
+  );
+  formVisibilita.addEventListener('submit', (e) => {
+    e.preventDefault();
+    conInvio(formVisibilita, async () => {
+      try {
+        const base = `/moderazione/segnalazioni/${s.id_segnalazione}`;
+        if (s.nascosta) await api.post(`${base}/mostra`);
+        else await api.post(`${base}/nascondi`, Object.fromEntries(new FormData(formVisibilita)));
+        sessionStorage.setItem('lnc-messaggio', s.nascosta ? 'La segnalazione è di nuovo visibile.' : 'La segnalazione è stata nascosta.');
+        location.reload();
+      } catch (err) {
+        mostraErrori(formVisibilita, err);
+      }
+    });
+  });
+
+  const formElimina = h(
+    'form',
+    { novalidate: true, class: 'zona-pericolosa' },
+    h('p', { class: 'small' }, 'L’eliminazione è definitiva: si perdono testo, allegati, sostegni e cronologia. Per toglierla solo dalla vista pubblica usa “Nascondi dal sito”.'),
+    campoMotivo('m-elimina', 'Motivo (registrato nel registro delle operazioni)'),
+    h('button', { type: 'submit', class: 'btn btn-danger' }, 'Elimina definitivamente'),
+  );
+  formElimina.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!confirm(`Eliminare definitivamente la segnalazione “${s.titolo}”? L’operazione non si può annullare.`)) return;
+    conInvio(formElimina, async () => {
+      try {
+        await api.del(`/moderazione/segnalazioni/${s.id_segnalazione}`, Object.fromEntries(new FormData(formElimina)));
+        sessionStorage.setItem('lnc-messaggio', 'Segnalazione eliminata.');
+        window.location.href = '/moderazione';
+      } catch (err) {
+        mostraErrori(formElimina, err);
+      }
+    });
+  });
+
   // Categorie
   const attuali = new Set(s.categorie.map((c) => c.id_categoria));
   const formCategorie = h(
@@ -302,12 +356,16 @@ async function pannelloModerazione() {
     s.autore?.id_utente ? h('p', { class: 'small muted' }, `Autore: ${s.autore.nome} (utente n. ${s.autore.id_utente}) · visibilità ${s.visibilita.toLowerCase()}`) : null,
     h('h3', {}, 'Stato'),
     formStato,
+    h('h3', {}, 'Visibilità sul sito'),
+    formVisibilita,
     h('h3', {}, 'Categorie'),
     formCategorie,
     h('h3', {}, 'Allegati'),
     allegati,
     h('h3', {}, 'Analisi automatiche'),
     listaAnalisi,
+    h('h3', { class: 'titolo-pericolo' }, 'Elimina la segnalazione'),
+    formElimina,
   );
 }
 
@@ -345,6 +403,7 @@ async function main() {
           { class: 'badges' },
           badgeStato(s.stato),
           ETICHETTE_VISIBILITA[s.visibilita] ? h('span', { class: 'badge' }, ETICHETTE_VISIBILITA[s.visibilita]) : null,
+          s.nascosta ? h('span', { class: 'badge badge-nascosta' }, '🚫 Nascosta') : null,
           s.da_revisionare_ia ? h('span', { class: 'badge badge-ia' }, '⚠ Analisi IA da revisionare') : null,
         ),
         h('h1', {}, s.titolo),
@@ -369,7 +428,9 @@ async function main() {
     if (isModeratore(utente)) {
       seguito.append(await pannelloModerazione());
     }
-    if (!s.stato.pubblica && s.e_mia) {
+    if (s.nascosta && s.e_mia) {
+      laterale.prepend(avviso('warning', `Il comitato ha nascosto questa segnalazione: non è visibile agli altri utenti.${s.motivo_nascondimento ? ` Motivo: ${s.motivo_nascondimento}` : ''}`));
+    } else if (!s.stato.pubblica && s.e_mia) {
       laterale.prepend(avviso('info', `La segnalazione è nello stato “${s.stato.nome}”: sarà pubblica dopo l’approvazione del comitato.`));
     }
   } catch (err) {

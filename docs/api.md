@@ -118,6 +118,9 @@ Ricerca di indirizzi a Milano tramite Nominatim di OpenStreetMap, chiamato dal s
 |---|---|
 | `GET /moderazione/segnalazioni` | `stato`, `quartiere`, `q`, `ordina`, `pagina`, `perPagina`; qualsiasi visibilità, con `da_revisionare_ia` |
 | `PATCH /moderazione/segnalazioni/:id/stato` | `codice`, `motivazione` (obbligatoria per `RIFIUTATA`) |
+| `POST /moderazione/segnalazioni/:id/nascondi` | `motivazione` (5–500). Reversibile: la segnalazione sparisce da elenchi, classifica, mappa e statistiche pubblici e non si può sostenere; la vedono autore e comitato (`nascosta`, `motivo_nascondimento`). 409 se già nascosta |
+| `POST /moderazione/segnalazioni/:id/mostra` | Ripristina una segnalazione nascosta |
+| `DELETE /moderazione/segnalazioni/:id` | Corpo `{ motivazione }` (5–500). Eliminazione definitiva con allegati, sostegni e cronologia; registrata nel log. 204 |
 | `PUT /moderazione/segnalazioni/:id/categorie` | `categorie: [id, …]` (1–5) |
 | `GET /moderazione/segnalazioni/:id/analisi` | Analisi IA del testo e degli allegati |
 | `PATCH /moderazione/analisi/:id` | `esito_revisione`: `CONFERMATA` \| `CORRETTA` \| `RESPINTA` |
