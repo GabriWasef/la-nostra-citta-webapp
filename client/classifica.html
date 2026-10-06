@@ -17,13 +17,15 @@
     <div class="container">
       <div class="page-header">
         <h1>Classifica delle priorità</h1>
-        <p>Le segnalazioni pubblicate più sostenute dai cittadini: sono la base del documento programmatico che il comitato presenterà ai candidati Sindaco.</p>
+        <p>Tutte le segnalazioni pubblicate, dalla più sostenuta dai cittadini, comprese quelle ancora senza sostegni: sono la base del documento programmatico che il comitato presenterà ai candidati Sindaco.</p>
       </div>
       <form class="filtri" id="filtri">
         <div class="field"><label for="quartiere">Quartiere</label><select id="quartiere" name="quartiere"></select></div>
         <div class="field"><label for="categoria">Categoria</label><select id="categoria" name="categoria"></select></div>
       </form>
+      <p id="totale" class="muted" aria-live="polite"></p>
       <ol class="classifica" id="classifica" aria-live="polite"></ol>
+      <div id="altre" class="paginazione"></div>
     </div>
   </main>
   <footer class="site-footer" id="site-footer"></footer>

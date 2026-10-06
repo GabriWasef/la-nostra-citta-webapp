@@ -18,7 +18,7 @@ const RISULTATO_SAN_SIRO = {
   lon: '9.1238',
   name: 'Piazzale Angelo Moratti',
   display_name: 'Piazzale Angelo Moratti, Municipio 7, Milano, Lombardia, Italia',
-  address: { road: 'Piazzale Angelo Moratti', suburb: 'Municipio 7', city: 'Milano' },
+  address: { road: 'Piazzale Angelo Moratti', neighbourhood: 'San Siro', suburb: 'Municipio 7', city: 'Milano' },
 };
 
 export const server = http.createServer((req, res) => {

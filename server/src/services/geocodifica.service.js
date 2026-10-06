@@ -93,12 +93,13 @@ const normalizza = (t) =>
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
+    .replace(/[’`]/g, "'")
     .trim();
 
 /** Quartiere della piattaforma che corrisponde ai nomi di zona restituiti da OpenStreetMap. */
 export function quartiereCorrispondente(address, quartieri) {
   if (!address) return null;
-  const zone = ['quarter', 'neighbourhood', 'suburb', 'city_district'].map((k) => normalizza(address[k])).filter(Boolean);
+  const zone = ['quarter', 'neighbourhood', 'suburb', 'city_district', 'town', 'village', 'municipality', 'city'].map((k) => normalizza(address[k])).filter(Boolean);
   for (const zona of zone) {
     const trovato = quartieri.find((q) => normalizza(q.nome) === zona);
     if (trovato) return trovato;

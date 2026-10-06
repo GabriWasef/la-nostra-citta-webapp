@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { cardSegnalazione } from '../components/card.js';
 import { $, aggiornaUrl, avviso, caricamento, h, monta, opzioni, paginazione, parametriUrl, plurale, statoVuoto } from '../dom.js';
+import { quartiereConRicerca } from '../components/ricerca.js';
 import { initPage } from '../layout.js';
 
 const form = $('#filtri');
@@ -57,9 +58,10 @@ function applicaFiltri() {
 }
 
 async function main() {
-  await initPage({ attiva: '/' });
-  const [quartieri, categorie, stati] = await Promise.all([catalogo.quartieri(), catalogo.categorie(), catalogo.statiPubblici()]);
-  opzioni($('#quartiere'), quartieri, { valore: 'id_quartiere', etichetta: 'nome', vuota: 'Tutti i quartieri', selezionato: filtri.quartiere });
+  const utente = await initPage({ attiva: '/' });
+  // Chi è collegato vede anche le proprie segnalazioni in attesa (e il comitato tutte): il filtro per stato le comprende.
+  const [quartieri, categorie, stati] = await Promise.all([catalogo.quartieri(), catalogo.categorie(), utente ? catalogo.stati() : catalogo.statiPubblici()]);
+  quartiereConRicerca($('#quartiere'), quartieri, { vuota: 'Tutti i quartieri', selezionato: filtri.quartiere, segnaposto: 'Cerca un quartiere…' });
   opzioni($('#categoria'), categorie, { valore: 'id_categoria', etichetta: 'nome', vuota: 'Tutte le categorie', selezionato: filtri.categoria });
   opzioni($('#stato'), stati, { valore: 'codice', etichetta: 'nome', vuota: 'Tutti gli stati', selezionato: filtri.stato });
   $('#ordina').value = filtri.ordina ?? 'recenti';

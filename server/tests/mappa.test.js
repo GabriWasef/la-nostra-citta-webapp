@@ -66,10 +66,10 @@ describe('Geocodifica (RF14)', () => {
     await ag.get('/api/v1/geocodifica/cerca').query({ q: 'ab' }).expect(400);
   });
 
-  test('inversa: indirizzo del punto e quartiere dal municipio quando è univoco', async () => {
+  test('inversa: indirizzo del punto e quartiere dal nome della zona', async () => {
     const res = await ag.get('/api/v1/geocodifica/inversa').query({ lat: 45.4781, lon: 9.1238 });
     assert.equal(res.body.risultato.indirizzo, 'Piazzale Angelo Moratti');
-    assert.equal(res.body.risultato.quartiere.nome, 'San Siro'); // unico quartiere del Municipio 7
+    assert.equal(res.body.risultato.quartiere.nome, 'San Siro'); // dal nome della zona (il Municipio 7 ha più quartieri)
     await ag.get('/api/v1/geocodifica/inversa').query({ lat: 95, lon: 9 }).expect(400);
   });
 
@@ -102,6 +102,8 @@ describe('Geocodifica (RF14)', () => {
     assert.equal(quartiereCorrispondente({ neighbourhood: 'Citta Studi' }, quartieri).id_quartiere, 3);
     assert.equal(quartiereCorrispondente({ suburb: 'Municipio 9' }, quartieri), null);
     assert.equal(quartiereCorrispondente({ suburb: 'Municipio 3' }, quartieri).id_quartiere, 3);
+    assert.equal(quartiereCorrispondente({ town: 'Sesto San Giovanni', suburb: 'Municipio 9' }, [...quartieri, { id_quartiere: 4, nome: 'Sesto San Giovanni', municipio: null }]).id_quartiere, 4, 'comune dell’hinterland');
+    assert.equal(quartiereCorrispondente({ neighbourhood: 'Sant’Ambrogio' }, [{ id_quartiere: 5, nome: 'Sant\'Ambrogio', municipio: 1 }]).id_quartiere, 5, 'apostrofo tipografico');
     assert.equal(quartiereCorrispondente(null, quartieri), null);
   });
 });

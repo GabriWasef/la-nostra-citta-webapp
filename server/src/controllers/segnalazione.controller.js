@@ -10,7 +10,7 @@ import { audit } from '../utils/audit.js';
 export const elenco = async (req, res) => res.json(await segnalazioneService.elencoPubblico(req.valid.query, req.user));
 export const mie = async (req, res) => res.json(await segnalazioneService.elencoMie(req.valid.query, req.user));
 export const mappa = async (req, res) => res.json({ dati: await segnalazioneService.perMappa(req.valid.query) });
-export const classifica = async (req, res) => res.json({ dati: await segnalazioneService.classifica(req.valid.query) });
+export const classifica = async (req, res) => res.json(await segnalazioneService.classifica(req.valid.query));
 export const dettaglio = async (req, res) =>
   res.json({ segnalazione: await segnalazioneService.dettaglio(req.valid.params.id, req.user) });
 export const storico = async (req, res) =>

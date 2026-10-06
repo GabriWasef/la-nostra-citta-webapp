@@ -68,7 +68,7 @@ Base: `/api/v1`. Richieste e risposte in JSON (tranne l'invio delle segnalazioni
 
 | Metodo e percorso | | Note |
 |---|---|---|
-| `GET /segnalazioni` | 🔓 | Solo pubblicate e non private. Query: `quartiere`, `categoria`, `stato` (codice), `q` (testo), `ordina` = `recenti` \| `meno_recenti` \| `sostegni`, `pagina`, `perPagina` (≤ 50) |
+| `GET /segnalazioni` | 🔓 | Le pubblicate e non private; chi è collegato vede anche le proprie in attesa, il comitato tutte. Query: `quartiere`, `categoria`, `stato` (codice), `q` (testo), `ordina` = `recenti` \| `meno_recenti` \| `sostegni`, `pagina`, `perPagina` (≤ 50) |
 | `GET /segnalazioni/mie` | 👤 | Tutte quelle dell'utente, in qualsiasi stato |
 | `GET /segnalazioni/mappa` | 🔓 | Punti con coordinate (stessi filtri) |
 | `GET /segnalazioni/:id` | 🔓 | Dettaglio con allegati e categorie. 404 se non visibile. Coordinate EXIF solo al comitato |
@@ -76,7 +76,7 @@ Base: `/api/v1`. Richieste e risposte in JSON (tranne l'invio delle segnalazioni
 | `POST /segnalazioni` | 👤 | `multipart/form-data`, vedi sotto |
 | `POST /segnalazioni/:id/sostegno` | 👤 | 201 `{ sostenuta, numero_sostegni }` |
 | `DELETE /segnalazioni/:id/sostegno` | 👤 | Revoca del sostegno |
-| `GET /classifica` | 🔓 | Query: `quartiere`, `categoria`, `limite` (≤ 100) |
+| `GET /classifica` | 🔓 | Tutte le pubblicate, anche con 0 sostegni (le chiuse in fondo). Query: `quartiere`, `categoria`, `limite` (≤ 100, predefinito 20), `pagina`. Risposta: `{ dati, paginazione }` |
 | `GET /allegati/:id` | 🔓 | Il file, con supporto `Range` per i video; solo se la segnalazione è visibile |
 
 ### `POST /segnalazioni`

@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { cardSegnalazione } from '../components/card.js';
 import { $, avviso, caricamento, conInvio, formatData, h, monta, mostraErrori, opzioni, paginazione, parametriUrl, pulisciErrori, statoVuoto } from '../dom.js';
+import { quartiereConRicerca } from '../components/ricerca.js';
 import { initPage } from '../layout.js';
 
 const RUOLI = { CITTADINO: 'Cittadino', MODERATORE: 'Moderatore del comitato', AMMINISTRATORE: 'Amministratore' };
@@ -41,12 +42,7 @@ async function main() {
   $('#p-email').value = utente.email;
   formProfilo.nome.value = utente.nome;
   formProfilo.cognome.value = utente.cognome;
-  opzioni($('#p-quartiere'), await catalogo.quartieri(), {
-    valore: 'id_quartiere',
-    etichetta: 'nome',
-    vuota: 'Non indicato',
-    selezionato: utente.id_quartiere_residenza,
-  });
+  quartiereConRicerca($('#p-quartiere'), await catalogo.quartieri(), { vuota: 'Non indicato', selezionato: utente.id_quartiere_residenza, segnaposto: 'Cerca il tuo quartiere…' });
   formProfilo.addEventListener('submit', (e) => {
     e.preventDefault();
     conInvio(formProfilo, async () => {

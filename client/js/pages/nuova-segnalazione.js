@@ -3,6 +3,7 @@ import * as catalogo from '../catalogo.js';
 import { $, h, monta, mostraErrori, opzioni, pulisciErrori } from '../dom.js';
 import { caricaAllegatiDiretti } from '../caricamento.js';
 import { initPage } from '../layout.js';
+import { quartiereConRicerca, sceltaMultipla } from '../components/ricerca.js';
 import { creaMappa, geolocalizzazioneDisponibile } from '../mappa.js';
 
 // Limiti del server (che resta comunque l'autorità finale): i valori veri arrivano da /api/v1/config.
@@ -349,16 +350,12 @@ async function main() {
   }
   let categorie;
   [quartieri, categorie] = await Promise.all([catalogo.quartieri(), catalogo.categorie()]);
-  opzioni($('#id_quartiere'), quartieri, {
-    valore: 'id_quartiere',
-    etichetta: 'nome',
+  quartiereConRicerca($('#id_quartiere'), quartieri, {
     vuota: 'Scegli il quartiere…',
     selezionato: utente.id_quartiere_residenza,
+    segnaposto: 'Scrivi per cercare il quartiere…',
   });
-  monta(
-    $('#categorie'),
-    categorie.map((c) => h('label', { class: 'chip-check' }, h('input', { type: 'checkbox', name: 'categorie', value: c.id_categoria }), h('span', {}, c.nome))),
-  );
+  sceltaMultipla($('#categorie'), categorie, { nome: 'categorie', max: MAX_CATEGORIE });
   contatore(form.titolo, $('#cont-titolo'));
   contatore(form.descrizione, $('#cont-descrizione'));
   preparaUpload();

@@ -70,8 +70,13 @@ async function presentaElenco({ righe, totale }, filtri, utente) {
 
 // ---- Consultazione (RF08)
 
+/**
+ * Elenco delle segnalazioni: tutti vedono quelle pubblicate; chi è collegato vede anche le proprie
+ * (anche in attesa di approvazione); il comitato (moderatori e amministratori) le vede tutte.
+ */
 export async function elencoPubblico(filtri, utente) {
-  const risultato = await segnalazioneRepository.cerca(filtri, { tipo: 'pubblico' }, utente?.id_utente);
+  const ambito = isModeratore(utente) ? { tipo: 'moderazione' } : { tipo: 'pubblico', idUtente: utente?.id_utente };
+  const risultato = await segnalazioneRepository.cerca(filtri, ambito, utente?.id_utente);
   return presentaElenco(risultato, filtri, utente);
 }
 
@@ -105,7 +110,13 @@ export async function perMappa(filtri) {
   }));
 }
 
-export const classifica = (filtri) => segnalazioneRepository.classifica(filtri);
+export async function classifica(filtri) {
+  const { righe, totale } = await segnalazioneRepository.classifica(filtri);
+  return {
+    dati: righe,
+    paginazione: { pagina: filtri.pagina, perPagina: filtri.limite, totale, pagine: Math.max(1, Math.ceil(totale / filtri.limite)) },
+  };
+}
 
 async function caricaVisibile(id, utente) {
   const s = await segnalazioneRepository.findById(id, utente?.id_utente ?? null);

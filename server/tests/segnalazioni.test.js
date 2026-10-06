@@ -191,6 +191,52 @@ describe('Sostegno (RF09)', () => {
   });
 });
 
+describe('Visibilità degli elenchi', () => {
+  test('la classifica comprende anche le segnalazioni pubblicate con 0 sostegni, ed è paginata', async () => {
+    const id = await pubblicata({ titolo: 'Segnalazione senza sostegni' });
+    const tutte = await anonimo().get('/api/v1/classifica').query({ limite: 100 });
+    const riga = tutte.body.dati.find((r) => r.id_segnalazione === id);
+    assert.ok(riga, 'compare in classifica');
+    assert.equal(riga.numero_sostegni, 0);
+    assert.equal(tutte.body.paginazione.totale, tutte.body.dati.length);
+
+    const prima = await anonimo().get('/api/v1/classifica').query({ limite: 1, pagina: 1 });
+    const seconda = await anonimo().get('/api/v1/classifica').query({ limite: 1, pagina: 2 });
+    assert.equal(prima.body.dati.length, 1);
+    assert.equal(seconda.body.paginazione.pagina, 2);
+    assert.equal(prima.body.paginazione.totale, tutte.body.paginazione.totale);
+    assert.notEqual(prima.body.dati[0].id_segnalazione, seconda.body.dati[0]?.id_segnalazione);
+  });
+
+  test('l’elenco: i cittadini vedono le pubblicate e le proprie in attesa; il comitato vede tutte', async () => {
+    const inAttesa = (await inviaSegnalazione(agAutore, { titolo: 'In attesa di approvazione' })).body.segnalazione.id_segnalazione;
+    const privata = (await inviaSegnalazione(agAutore, { titolo: 'Segnalazione privata', visibilita: 'PRIVATA' })).body.segnalazione.id_segnalazione;
+    const ids = async (agente) => (await agente.get('/api/v1/segnalazioni').query({ perPagina: 50 })).body.dati.map((s) => s.id_segnalazione);
+
+    const anon = await ids(anonimo());
+    assert.ok(!anon.includes(inAttesa) && !anon.includes(privata), 'gli anonimi non vedono segnalazioni non pubblicate');
+    const proprie = await ids(agAutore);
+    assert.ok(proprie.includes(inAttesa) && proprie.includes(privata), 'l’autore vede le proprie');
+    assert.ok(!(await ids(agAltro)).includes(inAttesa), 'un altro cittadino no');
+    const comitato = await ids(agMod);
+    assert.ok(comitato.includes(inAttesa) && comitato.includes(privata), 'il moderatore vede tutte');
+    const totale = (await agMod.get('/api/v1/moderazione/segnalazioni').query({ perPagina: 1 })).body.paginazione.totale;
+    assert.equal((await agMod.get('/api/v1/segnalazioni').query({ perPagina: 1 })).body.paginazione.totale, totale);
+  });
+});
+
+describe('Quartieri', () => {
+  test('quartieri di Milano e dei comuni vicini, ricercabili per nome', async () => {
+    const { body } = await anonimo().get('/api/v1/quartieri');
+    const nomi = body.dati.map((q) => q.nome);
+    assert.ok(nomi.length >= 100);
+    for (const n of ['Isola', 'Navigli', 'Città Studi', 'Quarto Oggiaro', 'Sesto San Giovanni', 'Sant\'Ambrogio']) assert.ok(nomi.includes(n), n);
+    assert.equal(new Set(nomi).size, nomi.length, 'nessun duplicato');
+    const ordinati = [...nomi].sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
+    assert.deepEqual(nomi.map((n) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).slice(0, 3), ordinati.map((n) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')).slice(0, 3));
+  });
+});
+
 describe('Ciclo di vita e moderazione (RF10)', () => {
   test('i cittadini non accedono alla moderazione', async () => {
     await agAltro.get('/api/v1/moderazione/segnalazioni').expect(403);
