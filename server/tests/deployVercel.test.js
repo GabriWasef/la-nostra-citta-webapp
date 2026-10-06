@@ -34,6 +34,10 @@ describe('vercel.json', () => {
     assert.ok(config.functions['api/index.js'].maxDuration >= 30, 'tempo sufficiente per elaborare i video');
   });
 
+  test('la funzione include tutte le dipendenze (il tracciamento automatico perde i file scelti dalla condizione "node" di alcuni pacchetti, es. strtok3)', () => {
+    assert.equal(config.functions['api/index.js'].includeFiles, 'node_modules/**');
+  });
+
   test('la Content-Security-Policy delle pagine statiche coincide con quella del server', () => {
     const blocco = config.headers.find((h) => h.source.includes('api'));
     const csp = blocco.headers.find((h) => h.key === 'Content-Security-Policy').value;
