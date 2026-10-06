@@ -2,6 +2,9 @@ import { avviaAnalisiDopoRisposta } from '../ai/worker.js';
 import { pulisciTemporanei } from '../middlewares/upload.js';
 import { eliminaAllegatiTemporanei, scaricaAllegatiDiretti } from '../services/media.service.js';
 import * as segnalazioneService from '../services/segnalazione.service.js';
+import { env } from '../config/env.js';
+import { storage } from '../storage/index.js';
+import { AppError } from '../utils/AppError.js';
 import { audit } from '../utils/audit.js';
 
 export const elenco = async (req, res) => res.json(await segnalazioneService.elencoPubblico(req.valid.query, req.user));
@@ -14,6 +17,14 @@ export const storico = async (req, res) =>
   res.json({ dati: await segnalazioneService.storico(req.valid.params.id, req.user) });
 
 export async function crea(req, res) {
+  // Su Vercel il disco è in sola lettura: senza lo store Blob gli allegati non si possono salvare.
+  if (env.isVercel && storage.tipo !== 'blob') {
+    throw new AppError(
+      503,
+      'ARCHIVIO_NON_CONFIGURATO',
+      'L’archivio degli allegati non è configurato: manca lo store Vercel Blob (variabili BLOB_STORE_ID e BLOB_WEBHOOK_PUBLIC_KEY, oppure BLOB_READ_WRITE_TOKEN).',
+    );
+  }
   const dati = req.valid.body;
   let temporanei = [];
   let risposta;
