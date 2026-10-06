@@ -38,6 +38,8 @@ function presenta(s, utente, { categorie = [], copertina = null } = {}) {
     indirizzo: s.indirizzo,
     visibilita: s.visibilita,
     quartiere: { id_quartiere: s.id_quartiere, nome: s.quartiere },
+    nascosta: s.nascosta,
+    ...(moderatore || eAutore(s, utente) ? { motivo_nascondimento: s.motivo_nascondimento ?? null } : {}),
     stato: { id_stato: s.id_stato, codice: s.codice_stato, nome: s.stato, pubblica: s.pubblica, finale: s.finale },
     autore: mostraAutore ? { nome: s.nome_autore, ...(moderatore ? { id_utente: s.id_autore } : {}) } : null,
     e_mia: eAutore(s, utente),
@@ -347,6 +349,34 @@ export async function cambiaStato(id, { codice, motivazione }, operatore) {
     }),
   );
   return { da: s.codice_stato, a: codice };
+}
+
+/** Nasconde la segnalazione agli altri utenti (reversibile): la vedono solo l'autore e il comitato. */
+export async function nascondi(id, motivazione) {
+  const s = await segnalazioneRepository.findAccesso(id);
+  if (!s) throw NON_TROVATA();
+  if (s.nascosta) throw new AppError(409, 'GIA_NASCOSTA', 'La segnalazione è già nascosta.');
+  await segnalazioneRepository.impostaNascosta(id, true, motivazione);
+  return { titolo: s.titolo };
+}
+
+export async function mostra(id) {
+  const s = await segnalazioneRepository.findAccesso(id);
+  if (!s) throw NON_TROVATA();
+  if (!s.nascosta) throw new AppError(409, 'NON_NASCOSTA', 'La segnalazione non è nascosta.');
+  await segnalazioneRepository.impostaNascosta(id, false);
+  return { titolo: s.titolo };
+}
+
+/** Eliminazione definitiva, con i file allegati. */
+export async function eliminaSegnalazione(id) {
+  const s = await segnalazioneRepository.findAccesso(id);
+  if (!s) throw NON_TROVATA();
+  // I percorsi dei file si leggono prima: dopo l'eliminazione le righe non esistono più.
+  const percorsi = await allegatoRepository.percorsiPer(id);
+  await segnalazioneRepository.elimina(id);
+  await mediaService.eliminaFile(percorsi);
+  return { titolo: s.titolo, id_autore: s.id_autore, allegati: percorsi.length };
 }
 
 export async function impostaCategorie(id, idCategorie, moderatore) {

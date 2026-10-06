@@ -38,3 +38,9 @@ export async function remove(id, db = pool) {
   const [r] = await db.execute('DELETE FROM allegato WHERE id_allegato = ?', [id]);
   return r.affectedRows;
 }
+
+/** Percorsi dei file di una segnalazione nell'archivio (per eliminarli insieme alla segnalazione). */
+export async function percorsiPer(idSegnalazione, db = pool) {
+  const [righe] = await db.execute('SELECT percorso_file FROM allegato WHERE id_segnalazione = ?', [idSegnalazione]);
+  return righe.map((r) => r.percorso_file);
+}

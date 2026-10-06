@@ -1902,3 +1902,28 @@ td input {
 .chip-rimovibile button:hover {
   background: color-mix(in srgb, var(--c-primary) 20%, transparent);
 }
+
+/* ---------- Segnalazione nascosta ed eliminazione ---------- */
+.badge-nascosta {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+  border-color: var(--c-danger);
+}
+
+.card-media .badge-nascosta {
+  top: auto;
+  bottom: 8px;
+}
+
+.zona-pericolosa {
+  padding: 12px;
+  border: 1px solid var(--c-danger);
+  border-radius: var(--radius-sm);
+  background: var(--c-danger-soft);
+  display: grid;
+  gap: 10px;
+}
+
+.titolo-pericolo {
+  color: var(--c-danger);
+}

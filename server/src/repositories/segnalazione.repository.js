@@ -12,7 +12,8 @@ const SELECT_BASE = `
          s.latitudine, s.longitudine, s.origine_coordinate, s.indirizzo, s.visibilita,
          s.id_autore, CONCAT(u.nome, ' ', u.cognome) AS nome_autore,
          s.id_quartiere, q.nome AS quartiere,
-         st.id_stato, st.codice AS codice_stato, st.nome AS stato, st.pubblica, st.finale,
+         st.id_stato, st.codice AS codice_stato, st.nome AS stato,
+         (st.pubblica = TRUE AND s.nascosta = FALSE) AS pubblica, s.nascosta, s.motivo_nascondimento, st.finale,
          (SELECT COUNT(*) FROM sostegno so WHERE so.id_segnalazione = s.id_segnalazione) AS numero_sostegni,
          EXISTS (SELECT 1 FROM sostegno so WHERE so.id_segnalazione = s.id_segnalazione AND so.id_utente = ?) AS sostenuta,
          EXISTS (SELECT 1 FROM analisi_ia ai
@@ -42,6 +43,7 @@ function normalizza(r) {
   return {
     ...r,
     pubblica: Boolean(r.pubblica),
+    nascosta: Boolean(r.nascosta),
     finale: Boolean(r.finale),
     sostenuta: Boolean(r.sostenuta),
     da_revisionare_ia: Boolean(r.da_revisionare_ia),
@@ -61,10 +63,10 @@ export async function cerca(filtri, ambito, idViewer = null, db = pool) {
   if (ambito.tipo === 'pubblico') {
     // Le segnalazioni pubblicate; chi è collegato vede in più le proprie, anche in attesa di approvazione.
     if (ambito.idUtente) {
-      where.push("((st.pubblica = TRUE AND s.visibilita <> 'PRIVATA') OR s.id_autore = ?)");
+      where.push("((st.pubblica = TRUE AND s.nascosta = FALSE AND s.visibilita <> 'PRIVATA') OR s.id_autore = ?)");
       params.push(ambito.idUtente);
     } else {
-      where.push("st.pubblica = TRUE AND s.visibilita <> 'PRIVATA'");
+      where.push("st.pubblica = TRUE AND s.nascosta = FALSE AND s.visibilita <> 'PRIVATA'");
     }
   } else if (ambito.tipo === 'autore') {
     where.push('s.id_autore = ?');
@@ -115,12 +117,13 @@ export async function findById(id, idViewer = null, db = pool) {
 /** Stato e visibilità: quanto basta per i controlli di accesso. */
 export async function findAccesso(id, db = pool) {
   const [righe] = await db.execute(
-    `SELECT s.id_segnalazione, s.id_autore, s.visibilita, st.codice AS codice_stato, st.nome AS stato, st.pubblica
+    `SELECT s.id_segnalazione, s.id_autore, s.visibilita, st.codice AS codice_stato, st.nome AS stato,
+            (st.pubblica = TRUE AND s.nascosta = FALSE) AS pubblica, s.nascosta, s.titolo
        FROM segnalazione s JOIN stato_segnalazione st ON st.id_stato = s.id_stato_corrente
       WHERE s.id_segnalazione = ?`,
     [id],
   );
-  return righe[0] ? { ...righe[0], pubblica: Boolean(righe[0].pubblica) } : null;
+  return righe[0] ? { ...righe[0], pubblica: Boolean(righe[0].pubblica), nascosta: Boolean(righe[0].nascosta) } : null;
 }
 
 export async function insert(d, db = pool) {
@@ -139,6 +142,19 @@ export async function insert(d, db = pool) {
 
 export async function updateStato(id, idStato, db = pool) {
   await db.execute('UPDATE segnalazione SET id_stato_corrente = ? WHERE id_segnalazione = ?', [idStato, id]);
+}
+
+/** Nasconde (con motivo) o rende di nuovo visibile una segnalazione. */
+export async function impostaNascosta(id, nascosta, motivo = null, db = pool) {
+  await db.execute(
+    'UPDATE segnalazione SET nascosta = ?, motivo_nascondimento = ?, data_nascondimento = ? WHERE id_segnalazione = ?',
+    [nascosta, nascosta ? motivo : null, nascosta ? new Date() : null, id],
+  );
+}
+
+/** Elimina la segnalazione; allegati, categorie, sostegni, storico e analisi seguono a cascata. */
+export async function elimina(id, db = pool) {
+  await db.execute('DELETE FROM segnalazione WHERE id_segnalazione = ?', [id]);
 }
 
 // ---- Categorie della segnalazione

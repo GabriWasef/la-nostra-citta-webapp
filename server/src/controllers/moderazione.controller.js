@@ -17,6 +17,27 @@ export async function impostaCategorie(req, res) {
   res.json({ segnalazione: await segnalazioneService.dettaglio(id, req.user) });
 }
 
+export async function nascondi(req, res) {
+  const id = req.valid.params.id;
+  const esito = await segnalazioneService.nascondi(id, req.valid.body.motivazione);
+  await audit(req, 'SEGNALAZIONE_NASCOSTA', 'segnalazione', id, { ...esito, motivazione: req.valid.body.motivazione });
+  res.json({ segnalazione: await segnalazioneService.dettaglio(id, req.user) });
+}
+
+export async function mostra(req, res) {
+  const id = req.valid.params.id;
+  const esito = await segnalazioneService.mostra(id);
+  await audit(req, 'SEGNALAZIONE_RIPRISTINATA', 'segnalazione', id, esito);
+  res.json({ segnalazione: await segnalazioneService.dettaglio(id, req.user) });
+}
+
+export async function elimina(req, res) {
+  const id = req.valid.params.id;
+  const esito = await segnalazioneService.eliminaSegnalazione(id);
+  await audit(req, 'SEGNALAZIONE_ELIMINATA', 'segnalazione', id, { ...esito, motivazione: req.valid.body.motivazione });
+  res.status(204).end();
+}
+
 export const analisi = async (req, res) => res.json({ dati: await segnalazioneService.analisi(req.valid.params.id) });
 
 export async function revisionaAnalisi(req, res) {

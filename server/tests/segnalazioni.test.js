@@ -225,6 +225,64 @@ describe('Visibilità degli elenchi', () => {
   });
 });
 
+describe('Nascondere ed eliminare (moderazione)', () => {
+  test('nascondere: sparisce da elenco, classifica, mappa e statistiche; l’autore e il comitato la vedono ancora; si può ripristinare', async () => {
+    const id = await pubblicata({ titolo: 'Da nascondere' });
+    const visibileA = async (agente) => (await agente.get('/api/v1/segnalazioni').query({ perPagina: 50 })).body.dati.some((x) => x.id_segnalazione === id);
+    const prima = (await anonimo().get('/api/v1/statistiche')).body.segnalazioni_pubblicate;
+    assert.ok(await visibileA(anonimo()));
+
+    await agAltro.post(`/api/v1/moderazione/segnalazioni/${id}/nascondi`).send({ motivazione: 'Contenuto inadatto' }).expect(403);
+    await agMod.post(`/api/v1/moderazione/segnalazioni/${id}/nascondi`).send({ motivazione: 'x' }).expect(400);
+    const res = await agMod.post(`/api/v1/moderazione/segnalazioni/${id}/nascondi`).send({ motivazione: 'Contenuto inadatto' });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.segnalazione.nascosta, true);
+    assert.equal(res.body.segnalazione.stato.codice, 'APPROVATA', 'lo stato di avanzamento non cambia');
+    await agMod.post(`/api/v1/moderazione/segnalazioni/${id}/nascondi`).send({ motivazione: 'di nuovo' }).expect(409);
+
+    assert.equal(await visibileA(anonimo()), false);
+    assert.equal(await visibileA(agAltro), false);
+    assert.ok(await visibileA(agAutore) && await visibileA(agMod), 'autore e comitato la vedono');
+    assert.equal((await anonimo().get('/api/v1/classifica').query({ limite: 100 })).body.dati.some((x) => x.id_segnalazione === id), false);
+    assert.equal((await anonimo().get('/api/v1/segnalazioni/mappa')).body.dati.some((x) => x.id_segnalazione === id), false);
+    assert.equal((await anonimo().get('/api/v1/statistiche')).body.segnalazioni_pubblicate, prima - 1);
+    await anonimo().get(`/api/v1/segnalazioni/${id}`).expect(404);
+    await agAltro.post(`/api/v1/segnalazioni/${id}/sostegno`).expect(404);
+    const dettaglio = await agAutore.get(`/api/v1/segnalazioni/${id}`);
+    assert.equal(dettaglio.body.segnalazione.nascosta, true);
+    assert.equal(dettaglio.body.segnalazione.motivo_nascondimento, 'Contenuto inadatto');
+
+    await agMod.post(`/api/v1/moderazione/segnalazioni/${id}/mostra`).expect(200);
+    await agMod.post(`/api/v1/moderazione/segnalazioni/${id}/mostra`).expect(409);
+    assert.ok(await visibileA(anonimo()));
+    await anonimo().get(`/api/v1/segnalazioni/${id}`).expect(200);
+    const [[log]] = await pool.query("SELECT COUNT(*) AS n FROM log_operazione WHERE entita = 'segnalazione' AND id_entita = ? AND azione IN ('SEGNALAZIONE_NASCOSTA', 'SEGNALAZIONE_RIPRISTINATA')", [id]);
+    assert.equal(Number(log.n), 2, 'registrate nel log');
+  });
+
+  test('eliminare: solo il comitato, con motivo; spariscono dati e file; registrato nel log', async () => {
+    const id = await pubblicata({ titolo: 'Da eliminare' });
+    const [[{ n: filePrima }]] = await pool.query('SELECT COUNT(*) AS n FROM allegato WHERE id_segnalazione = ?', [id]);
+    assert.ok(filePrima >= 1);
+    const salvatiPrima = await fileSalvati();
+    await agAltro.delete(`/api/v1/moderazione/segnalazioni/${id}`).send({ motivazione: 'Spam evidente' }).expect(403);
+    await agAutore.delete(`/api/v1/moderazione/segnalazioni/${id}`).send({ motivazione: 'Spam evidente' }).expect(403);
+    await agMod.delete(`/api/v1/moderazione/segnalazioni/${id}`).send({}).expect(400);
+
+    await agMod.delete(`/api/v1/moderazione/segnalazioni/${id}`).send({ motivazione: 'Spam evidente' }).expect(204);
+    await anonimo().get(`/api/v1/segnalazioni/${id}`).expect(404);
+    await agMod.get(`/api/v1/segnalazioni/${id}`).expect(404);
+    for (const t of ['allegato', 'segnalazione_categoria', 'storico_stato', 'sostegno']) {
+      const [[{ n }]] = await pool.query(`SELECT COUNT(*) AS n FROM ${t} WHERE id_segnalazione = ?`, [id]);
+      assert.equal(Number(n), 0, t);
+    }
+    assert.equal(await fileSalvati(), salvatiPrima - filePrima, 'file eliminati dall’archivio');
+    const [[log]] = await pool.query("SELECT dettagli FROM log_operazione WHERE azione = 'SEGNALAZIONE_ELIMINATA' AND id_entita = ?", [id]);
+    assert.match(JSON.stringify(log.dettagli), /Spam evidente/);
+    await agMod.delete(`/api/v1/moderazione/segnalazioni/${id}`).send({ motivazione: 'Già eliminata' }).expect(404);
+  });
+});
+
 describe('Quartieri', () => {
   test('quartieri di Milano e dei comuni vicini, ricercabili per nome', async () => {
     const { body } = await anonimo().get('/api/v1/quartieri');

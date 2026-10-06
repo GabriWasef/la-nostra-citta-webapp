@@ -68,6 +68,10 @@ export const filtriModerazione = z.object({
   perPagina: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+export const motivazioneModerazione = z.object({
+  motivazione: z.string().trim().min(5, 'Indica il motivo (almeno 5 caratteri).').max(500, 'Il motivo può avere al massimo 500 caratteri.'),
+});
+
 export const cambioStato = z
   .object({
     codice: z.string().regex(/^[A-Z_]+$/),

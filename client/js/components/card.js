@@ -14,7 +14,7 @@ export function cardSegnalazione(s, { mostraBadgeIa = false } = {}) {
   return h(
     'article',
     { class: 'card' },
-    h('div', { class: 'card-media' }, mediaCopertina(s.copertina), badgeStato(s.stato)),
+    h('div', { class: 'card-media' }, mediaCopertina(s.copertina), badgeStato(s.stato), s.nascosta ? h('span', { class: 'badge badge-nascosta' }, '🚫 Nascosta') : null),
     h(
       'div',
       { class: 'card-body' },
