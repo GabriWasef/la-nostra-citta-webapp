@@ -7,20 +7,14 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import mysql from 'mysql2/promise';
 import sharp from 'sharp';
+import { opzioniMysql } from '../src/config/dbOptions.js';
 import { env, ROOT_DIR } from '../src/config/env.js';
 import { eseguiSqlFile } from './migrate.js';
 
 const SEEDS_DIR = path.join(ROOT_DIR, 'database/seeds');
 
 export async function seedBase(log = console.log) {
-  const conn = await mysql.createConnection({
-    host: env.DB_HOST,
-    port: env.DB_PORT,
-    user: env.DB_USER,
-    password: env.DB_PASSWORD,
-    database: env.DB_NAME,
-    charset: 'utf8mb4_0900_ai_ci',
-  });
+  const conn = await mysql.createConnection(opzioniMysql());
   try {
     for (const file of (await fs.readdir(SEEDS_DIR)).filter((f) => f.endsWith('.sql')).sort()) {
       await eseguiSqlFile(conn, path.join(SEEDS_DIR, file));

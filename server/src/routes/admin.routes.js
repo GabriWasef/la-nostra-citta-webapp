@@ -3,6 +3,7 @@ import * as admin from '../controllers/admin.controller.js';
 import * as catalogo from '../controllers/catalogo.controller.js';
 import { RUOLI, requireRole } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validate.js';
+import { eseguiDiagnostica } from '../services/diagnostica.service.js';
 import * as sc from '../validators/catalogo.schemas.js';
 import { paramsId } from '../validators/common.js';
 import * as su from '../validators/utente.schemas.js';
@@ -25,3 +26,7 @@ adminRouter.delete('/categorie/:id', validate({ params: paramsId }), catalogo.el
 adminRouter.patch('/stati/:id', validate({ params: paramsId, body: sc.stato }), catalogo.aggiornaStato);
 
 adminRouter.get('/log', validate({ query: sc.filtriLog }), admin.log);
+
+adminRouter.get('/diagnostica', async (req, res) => {
+  res.json(await eseguiDiagnostica());
+});

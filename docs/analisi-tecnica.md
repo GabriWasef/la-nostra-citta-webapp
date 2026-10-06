@@ -571,17 +571,28 @@ Alla conferma di procedere sono state adottate le scelte proposte:
 | Privacy | ✅ informativa, anonimato, account anonimizzato, EXIF rimosso | `privacy.html`, `utente.service.js` |
 | Usabilità e accessibilità | ✅ mobile-first, tema scuro, errori per campo, tastiera, alternativa testuale alla mappa | `client/` |
 | Prestazioni | ✅ paginazione, indici, compressione immagini, coda asincrona; ⏳ cache della classifica | migrazione 007 |
-| Test | ✅ 54 test automatici su API e database | `server/tests/` |
+| Test | ✅ 104 test automatici su API e database | `server/tests/` |
 
 ### 9.2 Verifiche eseguite
 
 - Migrazioni applicate su un database vuoto e su un database creato con lo script ufficiale (con dati).
-- `npm test`: 54 test superati su MySQL 8.0.46.
+- `npm test`: 104 test superati su MySQL 8.0.46.
 - Percorso completo nel browser (Chromium) su desktop e mobile per cittadino, moderatore e amministratore:
   nessun errore JavaScript né violazione della Content Security Policy.
 - `npm audit`: nessuna vulnerabilità nota.
 
-### 9.3 Limiti e passi successivi
+### 9.3 Pubblicazione su Vercel
+
+Vedi [`DEPLOY-VERCEL.md`](../DEPLOY-VERCEL.md). Scelte principali:
+
+- **Un solo codice, due modi di esecuzione:** `server/src/server.js` (server Node/Docker) e `api/index.js` (funzione serverless che esporta la stessa app Express). I file statici sono generati in `public/` da `npm run build:vercel`; `vercel.json` definisce rewrite `/api/*`, header di sicurezza (CSP identica a quella di Helmet), cron e funzione.
+- **Allegati:** su Vercel una richiesta non può superare 4,5 MB, quindi il browser carica foto e video direttamente su **Vercel Blob in modalità privata** con token a scadenza breve (`POST /api/v1/allegati/upload`), poi invia la segnalazione in JSON con `allegati_blob`. Il server scarica i file, ne verifica il contenuto, ricodifica le immagini (via EXIF) e li salva con chiavi proprie; la lettura avviene con link firmati a scadenza breve (`ALLEGATI_LINK_MINUTI`) dopo il controllo dei permessi. L'interfaccia `storage` resta la stessa (locale o blob).
+- **Senza processi persistenti:** le analisi IA partono dopo la risposta (`waitUntil`) e un cron giornaliero recupera quelle rimaste indietro e pulisce sessioni, limiti di richieste, token e file temporanei.
+- **Rate limiting condiviso:** su Vercel i contatori sono in MySQL (migrazione `010_limiti_richieste.sql`), perché la memoria delle funzioni non è condivisa.
+- **Database:** MySQL 8 esterno con TLS (`DB_SSL`, `DB_SSL_CA`), pool piccolo e connessioni inattive chiuse presto. Servono trigger e collation `utf8mb4_0900_ai_ci`: non sono adatti MariaDB né i servizi senza trigger.
+- **Verifica:** i test usano simulatori (SDK Blob finto, Nominatim finto); la scheda **Diagnostica** dell'amministrazione controlla database, migrazioni, archivio e configurazione sull'ambiente reale.
+
+### 9.4 Limiti e passi successivi
 
 - Invio e-mail (SMTP) per il recupero password.
 - Ricodifica e rimozione dei metadati dei video (ffmpeg).

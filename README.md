@@ -5,6 +5,7 @@ Piattaforma web del comitato cittadino **Insieme per Milano** per raccogliere se
 I cittadini registrati inseriscono segnalazioni con almeno un allegato multimediale e sostengono quelle degli altri. Il comitato le verifica, le approva e ne segue il ciclo di vita fino all'invio ai candidati. Moduli automatici (moderazione del testo, classificazione, EXIF, controllo delle immagini) aiutano i volontari, che restano sempre l'ultima parola.
 
 - **Guida passo passo per avviare il progetto su Windows: [`GUIDA-AVVIO.md`](GUIDA-AVVIO.md)**
+- **Pubblicazione su Vercel: [`DEPLOY-VERCEL.md`](DEPLOY-VERCEL.md)**
 - Analisi dei requisiti: [`docs/analisi_requisiti_esercizio_1.md`](docs/analisi_requisiti_esercizio_1.md)
 - Analisi tecnica e stato del progetto: [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md)
 - Riferimento delle API REST: [`docs/api.md`](docs/api.md)
@@ -18,6 +19,7 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 | Database | MySQL 8.0+ (InnoDB, utf8mb4) con `mysql2` e query parametrizzate, senza ORM |
 | Sicurezza | Sessioni lato server in MySQL con cookie `HttpOnly`/`SameSite`, Argon2id, Helmet (CSP), rate limiting, controllo `Origin`, validazione Zod |
 | Allegati | Multer, verifica dei magic bytes (`file-type`), EXIF (`exifr`), ricodifica senza metadati (`sharp`) |
+| Deploy | Server Node classico (anche Docker) oppure **Vercel**: funzione serverless + file statici (`npm run build:vercel`), Vercel Blob privato per gli allegati, cron di manutenzione |
 | Test | `node:test` + `supertest` su un database MySQL di test |
 
 ## Requisiti
@@ -119,6 +121,9 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 | `npm run db:seed` | Carica categorie e quartieri (idempotente) |
 | `npm run db:seed:demo` | Dati di base + utenti e segnalazioni dimostrative |
 | `npm run admin:create` | Crea un amministratore (chiede i dati) o promuove un utente esistente |
+| `npm run build:vercel` | Genera la cartella statica `public/` per Vercel (pagine, Leaflet, libreria di caricamento diretto) |
+| `npm run db:migrate:remoto` | Come `db:migrate`, ma sul database indicato in `.env.production` |
+| `npm run admin:create:remoto` | Come `admin:create`, ma sul database indicato in `.env.production` |
 | `npm run worker` | Worker IA come processo separato (`-- --once` per svuotare la coda e uscire) |
 | `npm test` | Esegue i test sul database `TEST_DB_NAME`, che viene **svuotato** |
 
@@ -218,5 +223,6 @@ Salvare anche la cartella `uploads/` (oppure il bucket, se si usa un object stor
 - **E-mail di recupero password:** l'invio non è configurato; in sviluppo il link compare nel log del server. Serve un server SMTP (es. con nodemailer).
 - **Video:** vengono verificati tipo e dimensione, ma non ricodificati. I metadati dei video, che possono includere la posizione, non vengono rimossi: serve ffmpeg.
 - **IA:** i provider inclusi sono a regole (elenchi di parole, parole chiave, controlli tecnici sulle immagini). Servono a dimostrare il flusso. Si sostituiscono con modelli reali in `server/src/ai/` senza toccare API e database.
-- **Antivirus e object storage:** i punti di aggancio (`scansionaFile`, interfaccia `storage`) sono predisposti ma non collegati.
+- **Antivirus:** il punto di aggancio (`scansionaFile`) è predisposto ma non collegato. L'archivio degli allegati ha due implementazioni (disco locale e Vercel Blob privato) con la stessa interfaccia `storage`; un archivio S3 si aggiunge allo stesso modo.
+- **Vercel:** il comportamento sul servizio reale (Blob, database remoto, cron) non è verificabile dai test automatici, che usano simulatori: dopo il primo deploy usa **Amministrazione → Diagnostica**.
 - **App mobile o desktop:** non fa parte di questa fase. L'API REST è indipendente dal frontend; per un client nativo basterà aggiungere un'autenticazione a token in `middlewares/auth.js`.

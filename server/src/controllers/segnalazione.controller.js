@@ -1,4 +1,6 @@
+import { avviaAnalisiDopoRisposta } from '../ai/worker.js';
 import { pulisciTemporanei } from '../middlewares/upload.js';
+import { eliminaAllegatiTemporanei, scaricaAllegatiDiretti } from '../services/media.service.js';
 import * as segnalazioneService from '../services/segnalazione.service.js';
 import { audit } from '../utils/audit.js';
 
@@ -12,12 +14,23 @@ export const storico = async (req, res) =>
   res.json({ dati: await segnalazioneService.storico(req.valid.params.id, req.user) });
 
 export async function crea(req, res) {
+  const dati = req.valid.body;
+  let temporanei = [];
   try {
-    const esito = await segnalazioneService.crea(req.valid.body, req.files, req.user);
+    // Due modi di inviare gli allegati: nel modulo (file in req.files) oppure già caricati
+    // dal browser sull'archivio (allegati_blob), come su Vercel, dove una richiesta non può superare 4,5 MB.
+    if (dati.allegati_blob.length) {
+      const diretti = await scaricaAllegatiDiretti(dati.allegati_blob, req.user);
+      req.files = diretti.files; // verranno eliminati da pulisciTemporanei
+      temporanei = diretti.temporanei;
+    }
+    const esito = await segnalazioneService.crea(dati, req.files ?? [], req.user);
     await audit(req, 'SEGNALAZIONE_CREATA', 'segnalazione', esito.id_segnalazione, {
-      allegati: req.files.length,
+      allegati: req.files?.length ?? 0,
       moderazione: esito.moderazione,
     });
+    // Su Vercel non c'è un worker in sottofondo: le analisi in coda partono dopo la risposta.
+    avviaAnalisiDopoRisposta();
     const segnalazione = await segnalazioneService.dettaglio(esito.id_segnalazione, req.user);
     res.status(201).json({ segnalazione, categorie_suggerite: esito.categorie_suggerite });
   } catch (err) {
@@ -25,6 +38,7 @@ export async function crea(req, res) {
     throw err;
   } finally {
     await pulisciTemporanei(req);
+    await eliminaAllegatiTemporanei(temporanei);
   }
 }
 

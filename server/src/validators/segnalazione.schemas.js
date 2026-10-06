@@ -32,6 +32,11 @@ export const nuovaSegnalazione = z
     longitudine: coordinata(-180, 180).default(null),
     origine_coordinate: z.enum(['UTENTE', 'MAPPA', 'GEOCODIFICA']).default('MAPPA'),
     usa_posizione_foto: booleanoForm.default(false),
+    // File già caricati dal browser sull'archivio (Vercel): solo percorso e nome originale.
+    allegati_blob: z
+      .array(z.object({ pathname: z.string().min(5).max(300), nome: z.string().trim().min(1).max(200) }))
+      .max(10)
+      .default([]),
   })
   .refine((d) => (d.latitudine === null) === (d.longitudine === null), {
     message: 'Latitudine e longitudine vanno indicate insieme.',

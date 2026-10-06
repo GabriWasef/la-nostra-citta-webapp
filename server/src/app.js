@@ -5,6 +5,7 @@ import session from 'express-session';
 import helmet from 'helmet';
 import { env, ROOT_DIR } from './config/env.js';
 import { pool } from './config/db.js';
+import { direttiveCsp } from './config/csp.js';
 import { MySqlSessionStore } from './config/sessionStore.js';
 import { caricaUtente } from './middlewares/auth.js';
 import { errorHandler, notFoundApi } from './middlewares/errorHandler.js';
@@ -19,22 +20,14 @@ export function createApp() {
   const sessionStore = new MySqlSessionStore(pool);
 
   app.disable('x-powered-by');
-  app.set('trust proxy', env.TRUST_PROXY ? 1 : false);
+  app.set('trust proxy', env.trustProxy ? 1 : false);
 
   app.use(
     helmet({
+      // Politica definita in config/csp.js (e ripetuta in vercel.json per le pagine statiche).
       contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'blob:', 'https://tile.openstreetmap.org'],
-          mediaSrc: ["'self'", 'blob:'],
-          connectSrc: ["'self'"],
-          objectSrc: ["'none'"],
-          frameAncestors: ["'none'"],
-          upgradeInsecureRequests: env.isProduction ? [] : null,
-        },
+        useDefaults: false,
+        directives: direttiveCsp({ blob: env.storageDriver === 'blob', produzione: env.isProduction }),
       },
       hsts: env.isProduction,
       // Le tessere di OpenStreetMap vengono rifiutate ("403 Access blocked") se la

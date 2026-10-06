@@ -238,6 +238,32 @@ async function sezioneLog(pagina = 1) {
   );
 }
 
+// ---------- Diagnostica ----------
+
+async function sezioneDiagnostica() {
+  const esegui = async () => {
+    monta(pannello, h('p', { class: 'muted', role: 'status' }, 'Controlli in corso…'));
+    const r = await api.get('/admin/diagnostica');
+    monta(
+      pannello,
+      avviso(r.ok ? 'success' : 'error', r.ok ? 'Tutti i controlli sono superati.' : 'Alcuni controlli non sono superati: leggi i dettagli qui sotto.'),
+      tabella(
+        ['Controllo', 'Esito', 'Dettaglio', 'Tempo'],
+        r.controlli.map((c) =>
+          h('tr', {}, h('td', {}, c.nome), h('td', {}, c.ok ? '✅ ok' : '❌ problema'), h('td', { class: 'small' }, c.dettaglio), h('td', { class: 'small' }, `${c.ms} ms`)),
+        ),
+      ),
+      h('p', { class: 'small muted' }, `Ambiente: ${Object.entries(r.ambiente).map(([k, v]) => `${k}=${v}`).join(' · ')}`),
+      h('button', { type: 'button', class: 'btn', on: { click: () => esegui().catch((e) => messaggio('error', e.message)) } }, 'Ripeti i controlli'),
+    );
+  };
+  monta(
+    pannello,
+    h('p', { class: 'muted' }, 'Verifica database, migrazioni, archivio degli allegati e servizi esterni. Utile dopo ogni deploy: il controllo dell’archivio scrive, legge ed elimina un file di prova.'),
+    h('button', { type: 'button', class: 'btn btn-primary', on: { click: () => esegui().catch((e) => messaggio('error', e.message)) } }, 'Esegui i controlli'),
+  );
+}
+
 // ---------- Tab ----------
 
 const SEZIONI = [
@@ -246,6 +272,7 @@ const SEZIONI = [
   ['categorie', 'Categorie', sezioneCategorie],
   ['stati', 'Stati', sezioneStati],
   ['log', 'Registro operazioni', sezioneLog],
+  ['diagnostica', 'Diagnostica', sezioneDiagnostica],
 ];
 
 async function apri(chiave, conFocus = false) {

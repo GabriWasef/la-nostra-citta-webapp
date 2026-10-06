@@ -1,9 +1,12 @@
 import crypto from 'node:crypto';
 import { createReadStream } from 'node:fs';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import exifr from 'exifr';
 import { fileTypeFromFile } from 'file-type';
 import sharp from 'sharp';
+import { env } from '../config/env.js';
 import { ESTENSIONI_AMMESSE, limiteByteMedia } from '../middlewares/upload.js';
 import { scansionaFile, storage } from '../storage/index.js';
 import { AppError } from '../utils/AppError.js';
@@ -114,7 +117,7 @@ export async function elaboraFile(file) {
       logger.debug({ err }, 'Immagine non decodificabile');
       throw nonValido(file.originalname, 'l’immagine è danneggiata o non leggibile.');
     }
-    await storage.saveBuffer(chiave, risultato.data);
+    await storage.saveBuffer(chiave, risultato.data, { tipoMime: mime });
     dimensione = risultato.data.length;
     hash = crypto.createHash('sha256').update(risultato.data).digest('hex');
     larghezza = risultato.info.width;
@@ -123,7 +126,7 @@ export async function elaboraFile(file) {
     // I video non vengono ricodificati (servirebbe ffmpeg): si verificano tipo e dimensione.
     hash = await hashFile(file.path);
     dimensione = file.size;
-    await storage.saveFile(chiave, file.path);
+    await storage.saveFile(chiave, file.path, { tipoMime: mime });
   }
 
   return {
@@ -145,4 +148,50 @@ export async function eliminaFile(chiavi) {
   await Promise.all(
     chiavi.map((c) => storage.remove(c).catch((err) => logger.warn({ err, chiave: c }, 'File non eliminato'))),
   );
+}
+
+/**
+ * Caricamento diretto dal browser (Vercel): i file sono già nell'archivio, in tmp/<id utente>/.
+ * Qui si scaricano su disco per passare dagli stessi controlli dei file inviati con il modulo.
+ * Si accettano solo percorsi dell'utente stesso: il browser non può indicare indirizzi arbitrari.
+ * @returns {Promise<{files: object[], temporanei: string[]}>}
+ */
+export async function scaricaAllegatiDiretti(allegati, utente) {
+  if (!storage.scaricaTemporaneo) {
+    throw new AppError(400, 'CARICAMENTO_DIRETTO_NON_DISPONIBILE', 'Il caricamento diretto dei file non è attivo su questo server.');
+  }
+  if (allegati.length > env.MAX_FILES) {
+    throw new AppError(400, 'TROPPI_FILE', `Puoi allegare al massimo ${env.MAX_FILES} file.`);
+  }
+  const prefisso = storage.prefissoTemporanei(utente.id_utente);
+  const files = [];
+  const temporanei = [];
+  try {
+    for (const { pathname, nome } of allegati) {
+      if (!pathname.startsWith(prefisso) || pathname.includes('..') || temporanei.includes(pathname)) {
+        throw nonValido(nome, 'allegato non riconosciuto. Caricalo di nuovo.');
+      }
+      temporanei.push(pathname);
+      const tipoMedia = ESTENSIONI_AMMESSE[path.extname(nome).toLowerCase()];
+      if (!tipoMedia) throw nonValido(nome, 'formato non ammesso.');
+
+      const destinazione = path.join(os.tmpdir(), `lnc-${crypto.randomUUID()}`);
+      const scaricato = await storage.scaricaTemporaneo(pathname, destinazione, { maxByte: limiteByteMedia(tipoMedia) });
+      if (!scaricato) throw nonValido(nome, 'il caricamento non è andato a buon fine. Riprova.');
+      if (scaricato.troppoGrande) {
+        throw new AppError(413, 'FILE_TROPPO_GRANDE', `Il file "${nomeSicuro(nome)}" supera la dimensione massima consentita.`);
+      }
+      files.push({ originalname: nome, path: destinazione, size: scaricato.dimensione });
+    }
+  } catch (err) {
+    await Promise.all(files.map((f) => fs.rm(f.path, { force: true })));
+    await storage.rimuoviTemporanei(temporanei).catch((e) => logger.warn({ err: e }, 'File temporanei non eliminati'));
+    throw err;
+  }
+  return { files, temporanei };
+}
+
+export async function eliminaAllegatiTemporanei(temporanei) {
+  if (!temporanei?.length) return;
+  await storage.rimuoviTemporanei(temporanei).catch((err) => logger.warn({ err }, 'File temporanei non eliminati'));
 }

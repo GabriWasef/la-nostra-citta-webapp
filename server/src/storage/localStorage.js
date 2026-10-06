@@ -7,7 +7,7 @@ const CHIAVE_VALIDA = /^\d{4}\/\d{2}\/[0-9a-f-]{36}\.(jpg|png|webp|mp4|mov|webm)
 /**
  * Archivio dei file su filesystem locale (sviluppo o server singolo).
  * Stessa interfaccia di un futuro archivio S3-compatibile:
- * saveFile, saveBuffer, remove, send.
+ * saveBuffer, saveFile, remove, leggi, urlFirmato, send.
  */
 export function createLocalStorage(baseDir) {
   const percorso = (chiave) => {
@@ -34,6 +34,15 @@ export function createLocalStorage(baseDir) {
 
     async remove(chiave) {
       await fs.rm(percorso(chiave), { force: true });
+    },
+
+    async leggi(chiave) {
+      return fs.readFile(percorso(chiave));
+    },
+
+    /** L'archivio locale non ha link firmati. */
+    async urlFirmato() {
+      return null;
     },
 
     /** Invia il file al client; sendFile gestisce le richieste Range necessarie ai video. */

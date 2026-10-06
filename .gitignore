@@ -5,6 +5,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # File caricati dagli utenti
 uploads/*
@@ -15,3 +16,9 @@ uploads/*
 coverage/
 .DS_Store
 Thumbs.db
+
+# Cartella generata da npm run build:vercel
+public/
+
+# Collegamento locale al progetto Vercel
+.vercel/

@@ -52,5 +52,8 @@ jobs:
 
       - run: npm test
 
+      - name: Generazione dei file statici per Vercel
+        run: npm run build:vercel
+
       - name: Vulnerabilità note nelle dipendenze
         run: npm audit --omit=dev --audit-level=high

@@ -8,3 +8,6 @@ export const quartieri = () => carica('quartieri', '/quartieri');
 export const categorie = () => carica('categorie', '/categorie');
 export const stati = () => carica('stati', '/stati');
 export const statiPubblici = async () => (await stati()).filter((s) => s.pubblica);
+
+/** Impostazioni del server: limiti dei file e modalità di caricamento degli allegati. */
+export const configurazione = () => (cache.config ??= api.get('/config'));
