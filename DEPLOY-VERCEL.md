@@ -37,7 +37,7 @@ Compila `.env.production` (file ignorato da git). Genera i due segreti con:
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-Uno per `SESSION_SECRET`, uno per `CRON_SECRET`. Lascia per ora vuoti `BLOB_READ_WRITE_TOKEN`; `APP_ORIGIN` si completa al punto 4.
+Uno per `SESSION_SECRET`, uno per `CRON_SECRET`. Le variabili `BLOB_*` le crea Vercel (punto 5); `APP_ORIGIN` si completa al punto 4.
 
 ## 3. Creare le tabelle e il primo amministratore
 
@@ -77,7 +77,7 @@ Se `db:migrate:remoto` segnala un errore sui trigger, il database non è adatto 
 
 1. Nel progetto Vercel → **Storage → Create Database → Blob**.
 2. Scegli l'accesso **Private** (importante: le segnalazioni possono contenere foto non pubbliche).
-3. Collegalo al progetto per tutti gli ambienti: Vercel crea `BLOB_READ_WRITE_TOKEN`.
+3. Collegalo al progetto per tutti gli ambienti (Production, Preview, Development). Lascia **invariato il prefisso predefinito delle variabili (`BLOB`)**: Vercel crea `BLOB_STORE_ID` e `BLOB_WEBHOOK_PUBLIC_KEY` (store con autenticazione OIDC) oppure `BLOB_READ_WRITE_TOKEN` (store con token). L'app funziona in entrambi i casi, ma i nomi devono essere esattamente questi: con un prefisso diverso (per esempio `BLOB_READ_WRITE_TOKEN_STORE_ID`) l'app non li riconosce e salva i file su disco, che su Vercel è in sola lettura (errore "Si è verificato un errore imprevisto" all'invio di una segnalazione).
 4. **Deployments → ⋯ → Redeploy** (le variabili nuove valgono solo per i deploy successivi).
 
 ## 6. Verificare che tutto funzioni
@@ -115,7 +115,7 @@ Se un controllo fallisce, il messaggio indica cosa correggere. Dopo ogni modific
 | `ECONNREFUSED` / `ETIMEDOUT` verso il database | Il database non accetta connessioni da internet (firewall/allowlist del provider) |
 | `self-signed certificate` / `unable to verify` | Il provider usa una CA propria: incolla il certificato in `DB_SSL_CA` |
 | `Too many connections` | Riduci `DB_CONNECTION_LIMIT` o aumenta il limite di connessioni del database |
-| Il caricamento di foto/video fallisce | `BLOB_READ_WRITE_TOKEN` assente o store non privato; guarda "Diagnostica → Archivio" |
+| Il caricamento di foto/video fallisce, o l'invio di una segnalazione dà "errore imprevisto" | Mancano `BLOB_STORE_ID` + `BLOB_WEBHOOK_PUBLIC_KEY` (o `BLOB_READ_WRITE_TOKEN`), oppure hanno un prefisso diverso da `BLOB`, o lo store non è privato; guarda "Diagnostica → Archivio" |
 | Le richieste POST danno "origine non autorizzata" | `APP_ORIGIN` non coincide con l'indirizzo con cui apri il sito (es. dominio personalizzato) |
 | Troppe richieste (429) anche per pochi utenti | Il proxy non è riconosciuto e tutti hanno lo stesso IP: su Vercel `trust proxy` è automatico; non impostare `TRUST_PROXY=false` |
 

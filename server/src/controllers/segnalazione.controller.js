@@ -16,6 +16,7 @@ export const storico = async (req, res) =>
 export async function crea(req, res) {
   const dati = req.valid.body;
   let temporanei = [];
+  let risposta;
   try {
     // Due modi di inviare gli allegati: nel modulo (file in req.files) oppure già caricati
     // dal browser sull'archivio (allegati_blob), come su Vercel, dove una richiesta non può superare 4,5 MB.
@@ -32,7 +33,7 @@ export async function crea(req, res) {
     // Su Vercel non c'è un worker in sottofondo: le analisi in coda partono dopo la risposta.
     avviaAnalisiDopoRisposta();
     const segnalazione = await segnalazioneService.dettaglio(esito.id_segnalazione, req.user);
-    res.status(201).json({ segnalazione, categorie_suggerite: esito.categorie_suggerite });
+    risposta = { segnalazione, categorie_suggerite: esito.categorie_suggerite };
   } catch (err) {
     if (err.code === 'CONTENUTO_NON_AMMESSO') await audit(req, 'SEGNALAZIONE_BLOCCATA_IA', 'segnalazione');
     throw err;
@@ -40,6 +41,8 @@ export async function crea(req, res) {
     await pulisciTemporanei(req);
     await eliminaAllegatiTemporanei(temporanei);
   }
+  // Si risponde solo a pulizia finita: su Vercel dopo la risposta la funzione può essere sospesa.
+  res.status(201).json(risposta);
 }
 
 export async function sostieni(req, res) {

@@ -79,6 +79,7 @@ describe('Cartella statica generata (npm run build:vercel)', () => {
     const pacchetto = await fs.readFile(path.join(ROOT_DIR, 'public/js/vendor/blob-client.js'), 'utf8');
     assert.match(pacchetto, /blob\.generate-client-token/, 'contiene il protocollo di caricamento diretto');
     assert.match(pacchetto, /export\s*\{[^}]*\bupload\b/, 'esporta upload');
+    assert.match(pacchetto, /export\s*\{[^}]*\buploadPresigned\b/, 'esporta uploadPresigned');
   });
 
   test('ogni file a cui le pagine rimandano esiste (nessun collegamento rotto)', async () => {
