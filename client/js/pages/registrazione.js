@@ -1,6 +1,7 @@
 import { api, ApiError } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { $, conInvio, mostraErrori, opzioni } from '../dom.js';
+import { quartiereConRicerca } from '../components/ricerca.js';
 import { initPage } from '../layout.js';
 
 const form = $('#form-registrazione');
@@ -10,11 +11,7 @@ async function main() {
     window.location.replace('/');
     return;
   }
-  opzioni($('#id_quartiere_residenza'), await catalogo.quartieri(), {
-    valore: 'id_quartiere',
-    etichetta: 'nome',
-    vuota: 'Preferisco non indicarlo',
-  });
+  quartiereConRicerca($('#id_quartiere_residenza'), await catalogo.quartieri(), { vuota: 'Preferisco non indicarlo', segnaposto: 'Cerca il tuo quartiere…' });
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();

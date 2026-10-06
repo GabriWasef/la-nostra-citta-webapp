@@ -299,6 +299,25 @@ a:hover {
   color: var(--btn-fg);
 }
 
+/* Più specifici di ".site-nav a:hover", che altrimenti schiarisce lo sfondo dei pulsanti
+   lasciando il testo bianco (illeggibile). */
+.site-nav a.btn-primary:hover {
+  background: var(--c-primary-hover);
+  border-color: var(--c-primary-hover);
+  color: var(--btn-fg);
+}
+
+.site-nav a.btn-accent:hover {
+  background: color-mix(in srgb, var(--c-accent) 85%, #000);
+  border-color: color-mix(in srgb, var(--c-accent) 85%, #000);
+  color: var(--btn-fg);
+}
+
+.site-nav a.btn:focus-visible {
+  outline: 3px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
 .site-nav a[aria-current='page'] {
   color: var(--c-primary);
   background: var(--c-primary-soft);
@@ -1632,4 +1651,254 @@ td input {
 .risultati-indirizzo button:focus-visible {
   border-color: var(--c-primary);
   background: var(--c-primary-soft);
+}
+
+
+/* ---------- Scelta del quartiere con ricerca ---------- */
+.combo {
+  position: relative;
+}
+
+.combo-campo {
+  position: relative;
+}
+
+.combo-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 40px 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+}
+
+.combo-input:focus {
+  border-color: var(--c-primary);
+  outline: 3px solid color-mix(in srgb, var(--c-focus) 35%, transparent);
+  outline-offset: 0;
+}
+
+.combo-nativo {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.combo-nativo[aria-invalid='true'] + .combo .combo-input {
+  border-color: var(--c-danger);
+}
+
+.combo-freccia {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 40px;
+  border: 0;
+  background: none;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.combo-freccia:hover {
+  color: var(--c-text);
+  background: var(--c-surface-2);
+}
+
+.combo-lista {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 28px rgb(20 30 25 / 18%);
+}
+
+.combo-voce {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.combo-voce small {
+  color: var(--c-text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.combo-voce.attiva {
+  background: var(--c-primary-soft);
+}
+
+.combo-voce[aria-selected='true'] {
+  font-weight: 700;
+  color: var(--c-primary);
+}
+
+.combo-vuoto {
+  padding: 12px 10px;
+  color: var(--c-text-muted);
+}
+
+/* ---------- Scelta delle categorie ---------- */
+.multi {
+  position: relative;
+}
+
+.multi-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.multi-trigger:hover {
+  border-color: var(--c-primary);
+}
+
+.multi-trigger:focus-visible {
+  outline: 3px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
+.multi-trigger[aria-expanded='true'] {
+  border-color: var(--c-primary);
+}
+
+.multi-freccia {
+  color: var(--c-text-muted);
+}
+
+.multi-pannello {
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 2px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.multi-pannello[hidden] {
+  display: none;
+}
+
+.multi-opzione {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.multi-opzione:hover {
+  background: var(--c-surface-2);
+}
+
+.multi-opzione:has(input:checked) {
+  background: var(--c-primary-soft);
+}
+
+.multi-opzione input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  accent-color: var(--c-primary);
+  flex-shrink: 0;
+}
+
+.multi-opzione input:disabled + span {
+  opacity: 0.5;
+}
+
+.multi-opzione span {
+  display: grid;
+}
+
+.multi-opzione small {
+  color: var(--c-text-muted);
+  font-size: 0.82rem;
+}
+
+.multi-limite:empty {
+  display: none;
+}
+
+.multi-scelte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.multi-scelte:empty {
+  display: none;
+}
+
+.chip-rimovibile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+  background: var(--c-primary-soft);
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+
+.chip-rimovibile button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chip-rimovibile button:hover {
+  background: color-mix(in srgb, var(--c-primary) 20%, transparent);
 }

@@ -37,9 +37,9 @@ describe('Amministrazione', () => {
   });
 
   test('quartieri: creazione, nome duplicato, eliminazione di un quartiere in uso', async () => {
-    const creato = await agAdmin.post('/api/v1/admin/quartieri').send({ nome: 'Città Studi', municipio: 3 });
+    const creato = await agAdmin.post('/api/v1/admin/quartieri').send({ nome: 'Quartiere Esempio', municipio: 3 });
     assert.equal(creato.status, 201);
-    const dup = await agAdmin.post('/api/v1/admin/quartieri').send({ nome: 'Città Studi' });
+    const dup = await agAdmin.post('/api/v1/admin/quartieri').send({ nome: 'Quartiere Esempio' });
     assert.equal(dup.status, 409);
     const modificato = await agAdmin.patch(`/api/v1/admin/quartieri/${creato.body.quartiere.id_quartiere}`).send({ descrizione: 'Zona universitaria' });
     assert.equal(modificato.body.quartiere.municipio, 3, 'i campi non inviati restano invariati');

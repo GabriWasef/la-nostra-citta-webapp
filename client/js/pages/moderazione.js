@@ -2,10 +2,12 @@ import { api } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { cardSegnalazione } from '../components/card.js';
 import { $, aggiornaUrl, avviso, caricamento, h, monta, opzioni, paginazione, parametriUrl, plurale, statoVuoto } from '../dom.js';
+import { quartiereConRicerca } from '../components/ricerca.js';
 import { initPage } from '../layout.js';
 
 const form = $('#filtri');
-let filtri = { stato: 'INSERITA', pagina: 1, ...parametriUrl() };
+// Per impostazione predefinita si vedono tutte le segnalazioni, di ogni stato; il filtro "Stato" restringe.
+let filtri = { pagina: 1, ...parametriUrl() };
 
 async function carica() {
   const elenco = $('#elenco');
@@ -42,7 +44,7 @@ async function main() {
   await initPage({ attiva: '/moderazione', ruoli: ['MODERATORE', 'AMMINISTRATORE'] });
   const [stati, quartieri] = await Promise.all([catalogo.stati(), catalogo.quartieri()]);
   opzioni($('#stato'), stati, { valore: 'codice', etichetta: 'nome', vuota: 'Tutti gli stati', selezionato: filtri.stato });
-  opzioni($('#quartiere'), quartieri, { valore: 'id_quartiere', etichetta: 'nome', vuota: 'Tutti i quartieri', selezionato: filtri.quartiere });
+  quartiereConRicerca($('#quartiere'), quartieri, { vuota: 'Tutti i quartieri', selezionato: filtri.quartiere, segnaposto: 'Cerca un quartiere…' });
   $('#ordina').value = filtri.ordina ?? 'meno_recenti';
   $('#q').value = filtri.q ?? '';
   form.addEventListener('change', applica);

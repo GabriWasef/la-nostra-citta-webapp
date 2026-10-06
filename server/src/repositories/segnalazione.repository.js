@@ -59,7 +59,13 @@ export async function cerca(filtri, ambito, idViewer = null, db = pool) {
   const params = [];
 
   if (ambito.tipo === 'pubblico') {
-    where.push("st.pubblica = TRUE AND s.visibilita <> 'PRIVATA'");
+    // Le segnalazioni pubblicate; chi è collegato vede in più le proprie, anche in attesa di approvazione.
+    if (ambito.idUtente) {
+      where.push("((st.pubblica = TRUE AND s.visibilita <> 'PRIVATA') OR s.id_autore = ?)");
+      params.push(ambito.idUtente);
+    } else {
+      where.push("st.pubblica = TRUE AND s.visibilita <> 'PRIVATA'");
+    }
   } else if (ambito.tipo === 'autore') {
     where.push('s.id_autore = ?');
     params.push(ambito.idUtente);
@@ -203,8 +209,9 @@ export async function storico(id, db = pool) {
 
 // ---- Classifica e statistiche (viste della migrazione 004)
 
-export async function classifica({ quartiere, categoria, limite }, db = pool) {
-  const where = ["v.codice_stato <> 'CHIUSA'"];
+/** Tutte le segnalazioni pubblicate, anche con 0 sostegni; quelle chiuse in fondo. Paginata. */
+export async function classifica({ quartiere, categoria, limite, pagina = 1 }, db = pool) {
+  const where = ['TRUE'];
   const params = [];
   if (quartiere) {
     where.push('v.id_quartiere = ?');
@@ -214,14 +221,15 @@ export async function classifica({ quartiere, categoria, limite }, db = pool) {
     where.push('EXISTS (SELECT 1 FROM segnalazione_categoria sc WHERE sc.id_segnalazione = v.id_segnalazione AND sc.id_categoria = ?)');
     params.push(categoria);
   }
+  const [[{ totale }]] = await db.execute(`SELECT COUNT(*) AS totale FROM v_classifica_segnalazioni v WHERE ${where.join(' AND ')}`, params);
   const [righe] = await db.execute(
     `SELECT v.* FROM v_classifica_segnalazioni v
       WHERE ${where.join(' AND ')}
-      ORDER BY v.numero_sostegni DESC, v.data_inserimento ASC
-      LIMIT ?`,
-    [...params, String(limite)],
+      ORDER BY (v.codice_stato = 'CHIUSA'), v.numero_sostegni DESC, v.data_inserimento ASC, v.id_segnalazione ASC
+      LIMIT ? OFFSET ?`,
+    [...params, String(limite), String((pagina - 1) * limite)],
   );
-  return righe;
+  return { righe, totale };
 }
 
 export async function statistichePubbliche(db = pool) {

@@ -56,6 +56,7 @@ export const filtriClassifica = z.object({
   quartiere: id.optional(),
   categoria: id.optional(),
   limite: z.coerce.number().int().min(1).max(100).default(20),
+  pagina: z.coerce.number().int().min(1).default(1),
 });
 
 export const filtriModerazione = z.object({

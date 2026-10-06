@@ -97,6 +97,7 @@ Se un controllo fallisce, il messaggio indica cosa correggere. Dopo ogni modific
 ## Aggiornamenti futuri
 
 - Ogni push su `main` ripubblica automaticamente il sito.
+- Quando una versione aggiunge dati o tabelle (es. l'elenco dei quartieri di Milano e dintorni, migrazione `011`), esegui `git pull` e poi `npm run db:migrate:remoto` dal tuo PC.
 - Se una versione aggiunge migrazioni (cartella `database/migrations/`), eseguile **prima** di pubblicare con `npm run db:migrate:remoto`: sono pensate per essere compatibili con la versione precedente.
 
 ## Limiti e costi da conoscere

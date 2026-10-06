@@ -1,6 +1,7 @@
 import { api, urlAllegato } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { $, aggiornaUrl, avviso, h, monta, opzioni, parametriUrl, plurale } from '../dom.js';
+import { quartiereConRicerca } from '../components/ricerca.js';
 import { initPage } from '../layout.js';
 import { coloreStato, creaMappa, marcatore, pulsantePosizione } from '../mappa.js';
 
@@ -51,7 +52,7 @@ async function main() {
   await initPage({ attiva: '/mappa' });
   const filtri = parametriUrl();
   const [quartieri, categorie, stati] = await Promise.all([catalogo.quartieri(), catalogo.categorie(), catalogo.statiPubblici()]);
-  opzioni($('#quartiere'), quartieri, { valore: 'id_quartiere', etichetta: 'nome', vuota: 'Tutti i quartieri', selezionato: filtri.quartiere });
+  quartiereConRicerca($('#quartiere'), quartieri, { vuota: 'Tutti i quartieri', selezionato: filtri.quartiere, segnaposto: 'Cerca un quartiere…' });
   opzioni($('#categoria'), categorie, { valore: 'id_categoria', etichetta: 'nome', vuota: 'Tutte le categorie', selezionato: filtri.categoria });
   opzioni($('#stato'), stati, { valore: 'codice', etichetta: 'nome', vuota: 'Tutti gli stati', selezionato: filtri.stato });
 
