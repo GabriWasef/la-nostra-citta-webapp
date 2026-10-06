@@ -9,6 +9,7 @@ import { creaMappa, geolocalizzazioneDisponibile } from '../mappa.js';
 let MAX_FILE = 5;
 const MAX_CATEGORIE = 5;
 const LIMITI_MB = { IMMAGINE: 10, VIDEO: 50 };
+let modoCaricamento = 'token';
 let caricamentoDiretto = false; // true su Vercel: gli allegati vanno prima sull'archivio
 const TIPI = {
   jpg: 'IMMAGINE', jpeg: 'IMMAGINE', png: 'IMMAGINE', webp: 'IMMAGINE',
@@ -309,7 +310,7 @@ async function invia(e) {
     let risposta;
     if (caricamentoDiretto) {
       // 1) i file vanno direttamente sull'archivio (fino al 90%), 2) si invia la segnalazione con i loro percorsi.
-      const allegati_blob = await caricaAllegatiDiretti(files, utente, (f) => avanzamento(f * 0.9));
+      const allegati_blob = await caricaAllegatiDiretti(files, utente, (f) => avanzamento(f * 0.9), modoCaricamento);
       avanzamento(0.95);
       risposta = await api.post('/segnalazioni', { ...campi, allegati_blob });
     } else {
@@ -342,6 +343,7 @@ async function main() {
     LIMITI_MB.IMMAGINE = config.maxImageMb;
     LIMITI_MB.VIDEO = config.maxVideoMb;
     caricamentoDiretto = config.caricamentoDiretto;
+    modoCaricamento = config.modoCaricamento ?? 'token';
   } catch {
     // Con la configurazione non raggiungibile restano i valori predefiniti: il server controlla comunque.
   }

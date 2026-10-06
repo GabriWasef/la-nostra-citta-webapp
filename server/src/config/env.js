@@ -31,7 +31,7 @@ const schema = z.object({
   SESSION_MAX_AGE_HOURS: z.coerce.number().positive().default(8),
 
   // Dove si conservano gli allegati: "locale" (cartella uploads) oppure "blob" (Vercel Blob privato).
-  // Se non indicato: "blob" quando è presente BLOB_READ_WRITE_TOKEN, altrimenti "locale".
+  // Se non indicato: "blob" quando è presente BLOB_READ_WRITE_TOKEN o BLOB_STORE_ID (store con autenticazione OIDC), altrimenti "locale".
   STORAGE_DRIVER: z.enum(['locale', 'blob']).optional(),
   // Durata dei link firmati con cui il browser scarica gli allegati dal Blob privato.
   ALLEGATI_LINK_MINUTI: z.coerce.number().int().min(1).max(120).default(15),
@@ -91,7 +91,7 @@ function carica() {
     trustProxy: process.env.TRUST_PROXY === undefined ? isVercel : env.TRUST_PROXY,
     corsOrigins: env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
     uploadDir: path.resolve(ROOT_DIR, env.UPLOAD_DIR),
-    storageDriver: env.STORAGE_DRIVER ?? (process.env.BLOB_READ_WRITE_TOKEN ? 'blob' : 'locale'),
+    storageDriver: env.STORAGE_DRIVER ?? (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID ? 'blob' : 'locale'),
     rateLimitStore: env.RATE_LIMIT_STORE ?? (isVercel ? 'mysql' : 'memoria'),
   };
 }

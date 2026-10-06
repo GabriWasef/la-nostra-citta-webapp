@@ -27,10 +27,11 @@ function idCasuale() {
  * @param {(frazione: number) => void} onProgress avanzamento complessivo da 0 a 1
  * @returns {Promise<{pathname: string, nome: string}[]>} da inviare a POST /segnalazioni (allegati_blob)
  */
-export async function caricaAllegatiDiretti(files, utente, onProgress) {
+export async function caricaAllegatiDiretti(files, utente, onProgress, modo = 'token') {
   let upload;
   try {
-    ({ upload } = await import('/js/vendor/blob-client.js'));
+    const libreria = await import('/js/vendor/blob-client.js');
+    upload = modo === 'presigned' ? libreria.uploadPresigned : libreria.upload;
   } catch {
     throw new ApiError(0, 'LIBRERIA', 'Non è stato possibile caricare il modulo di invio dei file. Ricarica la pagina e riprova.');
   }
