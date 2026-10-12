@@ -11,4 +11,7 @@ export const provider = {
   moderazione: env.AI_PROVIDER === 'regole' ? moderazioneRegole : nessuno,
   classificazione: env.AI_PROVIDER === 'regole' ? classificazioneRegole : nessuno,
   visione: env.AI_PROVIDER === 'regole' ? visioneTecnica : nessuno,
+  // Modello linguistico usato dal worker (moderazione, classificazione, pertinenza delle immagini):
+  // { analizzaTesto(dati, contesto), verificaPertinenza(dati, contesto) } -> { modello, risposta }.
+  llm: nessuno,
 };

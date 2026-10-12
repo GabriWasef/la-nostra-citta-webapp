@@ -53,6 +53,8 @@ const schema = z.object({
 
   AI_PROVIDER: z.enum(['regole', 'nessuno']).default('regole'),
   AI_WORKER_INTERVAL_MS: z.coerce.number().int().min(0).default(5000),
+  // Job elaborati al massimo per ogni invocazione del worker (su Vercel la funzione dura al massimo 60 s).
+  AI_JOB_PER_RUN: z.coerce.number().int().min(1).max(100).default(5),
 
   RATE_LIMIT_ENABLED: booleano.default(true),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

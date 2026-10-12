@@ -1,6 +1,7 @@
 # Piano: integrazione IA reale
 
-Stato: **bozza da confermare**. Nessun codice è stato scritto: le scelte del §4 attendono una risposta.
+Stato: **scelte confermate** (tutte le opzioni consigliate del §4, S1–S7, e le proposte delle domande aperte).
+Avanzamento: fase 1 ✅ · fase 2 ✅ · fasi 3–7 da fare.
 Data dell'analisi: 12/10/2026, sul branch `main` (commit `5506b09`).
 
 ## 1. Fasi

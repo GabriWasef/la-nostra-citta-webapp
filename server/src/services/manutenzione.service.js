@@ -1,5 +1,5 @@
 // Pulizia periodica (cron di Vercel, una volta al giorno) e ripresa delle analisi rimaste in coda.
-import { elaboraTutti } from '../ai/worker.js';
+import { elaboraTutti, riprendiJobBloccati } from '../ai/worker.js';
 import { pool } from '../config/db.js';
 import { eliminaLimitiScaduti } from '../config/rateLimitStore.js';
 import { storage } from '../storage/index.js';
@@ -17,6 +17,8 @@ async function conteggio(nome, fn) {
 }
 
 export async function eseguiManutenzione() {
+  // Prima si rimettono in coda i job interrotti, poi si elabora (al massimo AI_JOB_PER_RUN).
+  const jobRipresi = await conteggio('job interrotti', () => riprendiJobBloccati());
   const analisi = await conteggio('analisi', () => elaboraTutti());
   const sessioni = await conteggio('sessioni', async () => (await pool.execute('DELETE FROM sessione WHERE scadenza <= CURRENT_TIMESTAMP'))[0].affectedRows);
   const limiti = await conteggio('limiti', () => eliminaLimitiScaduti(pool));
@@ -30,5 +32,5 @@ export async function eseguiManutenzione() {
     for (let i = 0; i < vecchi.length; i += 100) await storage.rimuoviTemporanei(vecchi.slice(i, i + 100));
     return vecchi.length;
   });
-  return { analisi_elaborate: analisi, sessioni_scadute: sessioni, limiti_scaduti: limiti, token_recupero_eliminati: tokenRecupero, file_temporanei_eliminati: fileTemporanei };
+  return { job_ripresi: jobRipresi, analisi_elaborate: analisi, sessioni_scadute: sessioni, limiti_scaduti: limiti, token_recupero_eliminati: tokenRecupero, file_temporanei_eliminati: fileTemporanei };
 }

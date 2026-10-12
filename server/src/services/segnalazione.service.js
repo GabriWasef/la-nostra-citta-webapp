@@ -287,6 +287,15 @@ export async function crea(dati, files, autore) {
           await analisiRepository.accoda({ tipo_analisi: 'ANALISI_IMMAGINE', id_segnalazione: id, id_allegato: m.id_allegato }, conn);
         }
       }
+      // Con un modello linguistico le analisi si fanno nel worker, mai nella richiesta:
+      // l'invio non dipende da latenza ed errori di un servizio esterno.
+      if (provider.llm) {
+        // Una sola chiamata produce moderazione e classificazione del testo.
+        await analisiRepository.accoda({ tipo_analisi: 'MODERAZIONE_TESTO', id_segnalazione: id }, conn);
+        for (const m of media.filter((x) => x.tipo_media === 'IMMAGINE')) {
+          await analisiRepository.accoda({ tipo_analisi: 'VERIFICA_PERTINENZA', id_segnalazione: id, id_allegato: m.id_allegato }, conn);
+        }
+      }
       return { id_segnalazione: id, moderazione: moderazione?.esito ?? null, categorie_suggerite: suggerite };
     });
   } catch (err) {
