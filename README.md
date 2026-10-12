@@ -176,6 +176,10 @@ Lo script ufficiale `database/schema/database_la_nostra_citta_mysql.sql` resta i
 | 007 | Indici composti e `FULLTEXT` per la ricerca |
 | 008 | Coerenza tipo media/MIME, hash dei file, origine delle coordinate |
 | 009 | Analisi video, esito e revisione delle analisi IA, coda `job_elaborazione` |
+| 010 | Contatori dei limiti di frequenza condivisi tra istanze (`limite_richieste`) |
+| 011 | Quartieri di Milano |
+| 012 | Segnalazioni nascoste dal comitato |
+| 013 | Analisi `VERIFICA_AUTENTICITA`, hash percettivo e data di scatto degli allegati, job rimandabili (`disponibile_dal`) |
 
 Il motivo di ogni modifica è spiegato nel §3 di [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md).
 

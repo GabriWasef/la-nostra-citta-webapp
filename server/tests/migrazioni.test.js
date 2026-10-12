@@ -4,8 +4,9 @@ import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { ROOT_DIR } from '../src/config/env.js';
-import { assicuraDatabaseDiTest, env, pool } from './helpers.js';
+import { assicuraDatabaseDiTest, creaUtente, env, pool } from './helpers.js';
 import { eseguiSqlFile, migra } from '../scripts/migrate.js';
+import { seedBase } from '../scripts/seed.js';
 import { fileMigrazioni, migrazioniInSospeso, verificaVersione } from '../src/config/migrazioni.js';
 
 const silenzioso = () => {};
@@ -20,6 +21,72 @@ describe('Versione del server', () => {
     assert.throws(() => verificaVersione('10.4.32-MariaDB'), /MariaDB.*XAMPP/s);
     assert.throws(() => verificaVersione('8.0.18'), /8\.0\.19/);
     assert.throws(() => verificaVersione('5.7.44-log'), /8\.0\.19/);
+  });
+});
+
+describe('Migrazione 013 (IA reale)', () => {
+  let idSegnalazione, idAllegato;
+  const errore = (sql, params) => pool.query(sql, params).then(() => null, (e) => e);
+
+  before(async () => {
+    assicuraDatabaseDiTest();
+    await migra({ fresh: true, log: silenzioso });
+    await seedBase(silenzioso);
+    const autore = await creaUtente();
+    [{ insertId: idSegnalazione }] = await pool.query(
+      `INSERT INTO segnalazione (titolo, descrizione, id_autore, id_quartiere, id_stato_corrente)
+       VALUES ('Titolo valido', 'Descrizione abbastanza lunga per il vincolo', ?, 1, 1)`,
+      [autore.id_utente],
+    );
+    [{ insertId: idAllegato }] = await pool.query(
+      "INSERT INTO allegato (nome_file, percorso_file, tipo_mime, tipo_media, dimensione_bytes, id_segnalazione) VALUES ('a.jpg', 'x/a.jpg', 'image/jpeg', 'IMMAGINE', 10, ?)",
+      [idSegnalazione],
+    );
+  });
+
+  test('VERIFICA_AUTENTICITA è un tipo ammesso per analisi e job; i tipi sconosciuti restano vietati', async () => {
+    await pool.query(
+      "INSERT INTO analisi_ia (tipo_analisi, modello, risultato, esito, id_allegato) VALUES ('VERIFICA_AUTENTICITA', 'm', '{}', 'DA_REVISIONARE', ?)",
+      [idAllegato],
+    );
+    await pool.query(
+      "INSERT INTO job_elaborazione (tipo_analisi, id_segnalazione, id_allegato) VALUES ('VERIFICA_AUTENTICITA', ?, ?)",
+      [idSegnalazione, idAllegato],
+    );
+    for (const [sql, params] of [
+      ["INSERT INTO analisi_ia (tipo_analisi, modello, risultato, id_segnalazione) VALUES ('VERIFICA_ALTRO', 'm', '{}', ?)", [idSegnalazione]],
+      ["INSERT INTO job_elaborazione (tipo_analisi, id_segnalazione) VALUES ('VERIFICA_ALTRO', ?)", [idSegnalazione]],
+    ]) {
+      assert.equal((await errore(sql, params))?.errno, 3819, sql);
+    }
+  });
+
+  test('i tipi già esistenti restano ammessi', async () => {
+    for (const tipo of ['MODERAZIONE_TESTO', 'CLASSIFICAZIONE_TESTO', 'ANALISI_IMMAGINE', 'ANALISI_VIDEO', 'ESTRAZIONE_EXIF', 'VERIFICA_PERTINENZA']) {
+      await pool.query('INSERT INTO job_elaborazione (tipo_analisi, id_segnalazione) VALUES (?, ?)', [tipo, idSegnalazione]);
+      await pool.query("INSERT INTO analisi_ia (tipo_analisi, modello, risultato, id_segnalazione) VALUES (?, 'm', '{}', ?)", [tipo, idSegnalazione]);
+    }
+  });
+
+  test('job rimandabili: disponibile_dal è facoltativo', async () => {
+    await pool.query(
+      "INSERT INTO job_elaborazione (tipo_analisi, id_segnalazione, disponibile_dal) VALUES ('MODERAZIONE_TESTO', ?, CURRENT_TIMESTAMP + INTERVAL 1 MINUTE)",
+      [idSegnalazione],
+    );
+    const [[job]] = await pool.query('SELECT disponibile_dal FROM job_elaborazione ORDER BY id_job DESC LIMIT 1');
+    assert.ok(job.disponibile_dal instanceof Date);
+  });
+
+  test('allegato: hash percettivo di 16 cifre esadecimali minuscole, indicizzato; data di scatto', async () => {
+    await pool.query("UPDATE allegato SET hash_percettivo = '0f1e2d3c4b5a6978', data_scatto_exif = '2026-05-01 10:30:00' WHERE id_allegato = ?", [idAllegato]);
+    for (const valore of ['0F1E2D3C4B5A6978', 'zz1e2d3c4b5a6978', '0f1e2d3c4b5a69']) {
+      const err = await errore('UPDATE allegato SET hash_percettivo = ? WHERE id_allegato = ?', [valore, idAllegato]);
+      assert.equal(err?.errno, 3819, valore);
+    }
+    const [indici] = await pool.query(
+      "SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'allegato' AND COLUMN_NAME = 'hash_percettivo'",
+    );
+    assert.ok(indici.length > 0);
   });
 });
 
