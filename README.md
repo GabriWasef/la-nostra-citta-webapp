@@ -9,6 +9,8 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 - Analisi dei requisiti: [`docs/analisi_requisiti_esercizio_1.md`](docs/analisi_requisiti_esercizio_1.md)
 - Analisi tecnica e stato del progetto: [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md)
 - Riferimento delle API REST: [`docs/api.md`](docs/api.md)
+- Modello ER completo (15 tabelle): [`database/er-completo-v2.svg`](database/er-completo-v2.svg)
+- Modello ER ridotto (moderazione e flusso IA): [`database/er-ridotto-v2.svg`](database/er-ridotto-v2.svg)
 
 ## Stack
 
@@ -154,12 +156,21 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 │   └── tests/
 ├── database/
 │   ├── schema/                script SQL ufficiale dell'esercizio (riferimento, invariato)
-│   ├── migrations/            001 schema iniziale + 002–009 correzioni ed estensioni
+│   ├── er-completo-v2.svg     modello ER completo aggiornato (15 tabelle)
+│   ├── er-ridotto-v2.svg      modello ER ridotto (moderazione e flusso IA)
+│   ├── migrations/            001 schema iniziale + 002–012 correzioni ed estensioni
 │   ├── seeds/                 dati iniziali
 │   └── docker-init/
 ├── docs/                      requisiti, analisi tecnica, API
 └── uploads/                   file caricati (ignorati da git)
 ```
+
+## Modelli ER
+
+I due diagrammi ER in `database/` rappresentano lo stato attuale dello schema dopo le migrazioni **001–012**, incluse le parti su moderazione, analisi IA e coda `job_elaborazione`.
+
+- [`database/er-completo-v2.svg`](database/er-completo-v2.svg): modello completo con tutte le 15 tabelle.
+- [`database/er-ridotto-v2.svg`](database/er-ridotto-v2.svg): modello ridotto, focalizzato su moderazione e flusso IA.
 
 ## Database
 
@@ -176,6 +187,9 @@ Lo script ufficiale `database/schema/database_la_nostra_citta_mysql.sql` resta i
 | 007 | Indici composti e `FULLTEXT` per la ricerca |
 | 008 | Coerenza tipo media/MIME, hash dei file, origine delle coordinate |
 | 009 | Analisi video, esito e revisione delle analisi IA, coda `job_elaborazione` |
+| 010 | Limiti di richieste e tracciamento antiflood |
+| 011 | Import quartieri di Milano aggiornati |
+| 012 | Nascondimento segnalazioni e relativi filtri di visibilità |
 
 Il motivo di ogni modifica è spiegato nel §3 di [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md).
 
