@@ -19,7 +19,9 @@
     "test": "node --env-file-if-exists=.env --test --test-concurrency=1 \"server/tests/**/*.test.js\"",
     "build:vercel": "node server/scripts/build-vercel.js",
     "db:migrate:remoto": "node --env-file=.env.production server/scripts/migrate.js",
-    "admin:create:remoto": "node --env-file=.env.production server/scripts/create-admin.js"
+    "admin:create:remoto": "node --env-file=.env.production server/scripts/create-admin.js",
+    "db:svuota": "node --env-file-if-exists=.env server/scripts/svuota-segnalazioni.js",
+    "db:svuota:remoto": "node --env-file=.env.production server/scripts/svuota-segnalazioni.js"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",
