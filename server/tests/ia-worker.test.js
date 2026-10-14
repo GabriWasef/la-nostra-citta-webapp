@@ -95,7 +95,7 @@ describe('Creazione con un modello linguistico configurato', () => {
     const id = await nuovaSegnalazione();
     assert.equal(chiamate.length, 0);
     const tipi = (await jobDi(id)).map((j) => j.tipo_analisi).sort();
-    assert.deepEqual(tipi, ['ANALISI_IMMAGINE', 'MODERAZIONE_TESTO', 'VERIFICA_PERTINENZA']);
+    assert.deepEqual(tipi, ['ANALISI_IMMAGINE', 'MODERAZIONE_TESTO', 'VERIFICA_AUTENTICITA', 'VERIFICA_PERTINENZA']);
     // Il filtro a regole resta nella richiesta.
     const [regole] = await analisiDi(id);
     assert.equal(regole.modello, 'regole-moderazione-it@1');
@@ -264,7 +264,7 @@ describe('AI_PROVIDER=mistral con l’adapter reale (fetch finto)', () => {
       await svuota();
       await rendiDisponibili();
     }
-    const job = (await jobDi(id)).filter((j) => j.tipo_analisi !== 'ANALISI_IMMAGINE');
+    const job = (await jobDi(id)).filter((j) => ['MODERAZIONE_TESTO', 'VERIFICA_PERTINENZA'].includes(j.tipo_analisi));
     assert.deepEqual(job.map((j) => j.stato), ['ERRORE', 'ERRORE']);
     assert.ok(job.every((j) => !j.ultimo_errore.includes('chiave-di-prova')));
     const nonRiuscite = (await analisiDi(id)).filter((a) => a.risultato.errore === 'PROVIDER_NON_DISPONIBILE');

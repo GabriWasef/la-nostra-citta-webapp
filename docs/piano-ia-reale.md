@@ -1,7 +1,7 @@
 # Piano: integrazione IA reale
 
 Stato: **scelte confermate** (tutte le opzioni consigliate del §4, S1–S7, e le proposte delle domande aperte).
-Avanzamento: fase 1 ✅ · fase 2 ✅ · fase 3 ✅ · fasi 4–7 da fare.
+Avanzamento: fase 1 ✅ · fase 2 ✅ · fase 3 ✅ · fase 4 ✅ · fasi 5–7 da fare.
 Data dell'analisi: 12/10/2026, sul branch `main` (commit `5506b09`).
 
 ## 1. Fasi
@@ -105,6 +105,10 @@ controller e route, `vercel.json` (né frequenza del cron né chiavi).
 9. **Rate limit e `rateLimitStore.js`.** La classe `MySqlRateLimitStore` è riusabile (prefisso `ai:mistral:min`, finestra 60 s); per il limite giornaliero uso una chiave con la data (`ai:mistral:day:2026-10-12`) così la finestra coincide con il giorno di calendario UTC.
 10. **Privacy.** Oltre a Groq (extra-UE), il piano gratuito di Mistral potrebbe consentire l'uso dei dati per l'addestramento salvo disattivazione nella console: da verificare e indicare in `AI-PROVIDERS.md` e nell'informativa. Il testo della segnalazione può contenere dati personali scritti dall'autore: non è filtrabile in modo affidabile, va dichiarato.
 11. **Ambiente dei test.** I test richiedono MySQL 8; nel container di sviluppo MySQL non è installato. Userò Docker (`docker-compose.yml` del progetto) se disponibile, altrimenti lo segnalerò per ogni fase.
+
+12. **Soglia del pHash.** Con la soglia richiesta (distanza di Hamming ≤ 5) una foto ridimensionata e ricompressa in modo realistico (lato 560 px, qualità 80) resta a 0–2 bit; con ricompressioni molto forti (qualità 50–60) si arriva a 6 bit e il riuso sfugge. Tra foto diverse la distanza minima osservata è 14–22 bit. Alzare la soglia a 8 resterebbe lontano dai falsi positivi: da decidere.
+13. **Immagini uniformi.** Un'immagine quasi priva di contrasto (cielo, muro, foto nera) non riceve il pHash: il suo hash sarebbe rumore e coinciderebbe per caso con altre immagini uniformi. Il confronto risulta "non verificabile".
+14. **Data di scatto.** `data_scatto_exif` è salvata all'upload e mostrata nella verifica (giorni prima dell'invio), ma non cambia l'esito: una foto vecchia può documentare un problema che dura da tempo.
 
 ## 6. Domande aperte
 

@@ -61,6 +61,8 @@ const schema = z.object({
   GROQ_MODEL: z.string().min(1).default('qwen/qwen3.8-27b'),
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(55_000).default(15_000),
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  // Distanza oltre la quale la posizione GPS della foto è incoerente con quella della segnalazione.
+  EXIF_MAX_DISTANCE_M: z.coerce.number().positive().default(100),
   AI_WORKER_INTERVAL_MS: z.coerce.number().int().min(0).default(5000),
   // Job elaborati al massimo per ogni invocazione del worker (su Vercel la funzione dura al massimo 60 s).
   AI_JOB_PER_RUN: z.coerce.number().int().min(1).max(100).default(5),

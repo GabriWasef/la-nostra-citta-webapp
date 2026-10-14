@@ -140,3 +140,13 @@ export async function jobPerSegnalazione(idSegnalazione, db = pool) {
   );
   return righe;
 }
+
+/** Ultima analisi di un tipo per un allegato (es. la pertinenza, per il segnale di autenticità). */
+export async function ultimaPerAllegato(idAllegato, tipoAnalisi, db = pool) {
+  const [righe] = await db.execute(
+    `SELECT id_analisi, modello, risultato, esito FROM analisi_ia
+      WHERE id_allegato = ? AND tipo_analisi = ? ORDER BY id_analisi DESC LIMIT 1`,
+    [idAllegato, tipoAnalisi],
+  );
+  return righe[0] ?? null;
+}

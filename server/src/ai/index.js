@@ -4,6 +4,7 @@
 //   esterno) più un modello linguistico, usato solo dal worker, con eventuale fallback (Groq);
 // - nessuno: nessuna analisi automatica.
 import { env } from '../config/env.js';
+import { MODELLO_AUTENTICITA } from './autenticita.js';
 import { classificazioneRegole } from './classificazione.js';
 import { moderazioneRegole } from './moderazione.js';
 import { creaLlmDaConfig } from './providers/index.js';
@@ -16,6 +17,8 @@ export function creaProvider(cfg, dipendenze) {
     moderazione: attivi ? moderazioneRegole : null,
     classificazione: attivi ? classificazioneRegole : null,
     visione: attivi ? visioneTecnica : null,
+    // Verifica di autenticità delle foto (EXIF, foto riusate): deterministica, nessun servizio esterno.
+    autenticita: attivi ? { modello: MODELLO_AUTENTICITA } : null,
     // Modello linguistico usato dal worker (moderazione, classificazione, pertinenza delle immagini):
     // { analizzaTesto(dati, contesto), verificaPertinenza(dati, contesto) } -> { modello, risposta }.
     llm: creaLlmDaConfig(cfg, dipendenze),

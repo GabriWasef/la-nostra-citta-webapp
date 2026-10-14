@@ -11,9 +11,11 @@ import * as catalogoRepository from '../repositories/catalogo.repository.js';
 import * as segnalazioneRepository from '../repositories/segnalazione.repository.js';
 import { storage } from '../storage/index.js';
 import { logger } from '../utils/logger.js';
+import { verificaAutenticita } from './autenticita.js';
 import { RinvioJob } from './errori.js';
 import { esitoClassificazione, esitoModerazione, esitoPertinenza, punteggioGravita } from './esito.js';
 import { provider } from './index.js';
+import { DISTANZA_MASSIMA } from './phash.js';
 
 export const TENTATIVI_MASSIMI = 3;
 // Su Vercel una funzione dura al massimo 60 s (vercel.json): ci si ferma quando ne restano meno di 10.
@@ -139,6 +141,23 @@ const ESECUTORI = {
       esito,
       id_allegato: allegato.id_allegato,
     };
+  },
+
+  async VERIFICA_AUTENTICITA(job) {
+    if (!provider.autenticita) return null;
+    const allegato = await allegatoRepository.findById(job.id_allegato);
+    if (!allegato || allegato.tipo_media !== 'IMMAGINE') return null;
+    const segnalazione = await segnalazioneRepository.findById(allegato.id_segnalazione);
+    if (!segnalazione) return null;
+    const [simili, pertinenza] = await Promise.all([
+      allegato.hash_percettivo ? allegatoRepository.simili(allegato.hash_percettivo, allegato.id_segnalazione, DISTANZA_MASSIMA) : [],
+      // Accodata prima di questa: se il modello ha già risposto, il suo segnale entra come indizio.
+      analisiRepository.ultimaPerAllegato(allegato.id_allegato, 'VERIFICA_PERTINENZA'),
+    ]);
+    const { esito, punteggio, risultato } = verificaAutenticita({
+      allegato, segnalazione, simili, pertinenza, distanzaMassimaM: env.EXIF_MAX_DISTANCE_M,
+    });
+    return { tipo_analisi: 'VERIFICA_AUTENTICITA', modello: provider.autenticita.modello, risultato, punteggio, esito, id_allegato: allegato.id_allegato };
   },
 };
 

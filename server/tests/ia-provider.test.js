@@ -234,6 +234,6 @@ describe('Registro dei provider', () => {
     assert.equal(creaProvider(config({ AI_FALLBACK_PROVIDER: 'groq' })).llm.modello, 'mistral:mistral-small-latest → groq:qwen/qwen3.8-27b');
   });
   test('nessuno: nessuna analisi', () => {
-    assert.deepEqual(creaProvider(config({ AI_PROVIDER: 'nessuno' })), { moderazione: null, classificazione: null, visione: null, llm: null });
+    assert.deepEqual(creaProvider(config({ AI_PROVIDER: 'nessuno' })), { moderazione: null, classificazione: null, visione: null, autenticita: null, llm: null });
   });
 });

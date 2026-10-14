@@ -6,6 +6,7 @@ import path from 'node:path';
 import exifr from 'exifr';
 import { fileTypeFromFile } from 'file-type';
 import sharp from 'sharp';
+import { hashPercettivo } from '../ai/phash.js';
 import { env } from '../config/env.js';
 import { ESTENSIONI_AMMESSE, limiteByteMedia } from '../middlewares/upload.js';
 import { scansionaFile, storage } from '../storage/index.js';
@@ -52,6 +53,21 @@ async function coordinateExif(percorso) {
     if (Math.abs(gps.latitude) > 90 || Math.abs(gps.longitude) > 180) return null;
     if (gps.latitude === 0 && gps.longitude === 0) return null;
     return { latitudine: Number(gps.latitude.toFixed(6)), longitudine: Number(gps.longitude.toFixed(6)) };
+  } catch {
+    return null;
+  }
+}
+
+// Intervallo rappresentabile da una colonna TIMESTAMP di MySQL.
+const TIMESTAMP_MIN = Date.UTC(1970, 0, 1, 0, 0, 1);
+const TIMESTAMP_MAX = Date.UTC(2038, 0, 19);
+
+/** Data di scatto (DateTimeOriginal): va letta prima della ricodifica, che rimuove i metadati. */
+async function dataScattoExif(percorso) {
+  try {
+    const { DateTimeOriginal: data } = (await exifr.parse(percorso, { pick: ['DateTimeOriginal'] })) ?? {};
+    if (!(data instanceof Date) || Number.isNaN(data.getTime())) return null;
+    return data.getTime() >= TIMESTAMP_MIN && data.getTime() <= TIMESTAMP_MAX ? data : null;
   } catch {
     return null;
   }
@@ -107,9 +123,12 @@ export async function elaboraFile(file) {
   let hash;
   let larghezza = null;
   let altezza = null;
+  let hashPerc = null;
+  let dataScatto = null;
 
   if (tipoMedia === 'IMMAGINE') {
     exif = await coordinateExif(file.path);
+    dataScatto = await dataScattoExif(file.path);
     let risultato;
     try {
       risultato = await ricodificaImmagine(file.path, mime);
@@ -121,6 +140,11 @@ export async function elaboraFile(file) {
     dimensione = risultato.data.length;
     hash = crypto.createHash('sha256').update(risultato.data).digest('hex');
     larghezza = risultato.info.width;
+    // Per riconoscere la stessa foto in altre segnalazioni (verifica di autenticità): pochi millisecondi.
+    hashPerc = await hashPercettivo(risultato.data).catch((err) => {
+      logger.warn({ err }, 'Hash percettivo non calcolato');
+      return null;
+    });
     altezza = risultato.info.height;
   } else {
     // I video non vengono ricodificati (servirebbe ffmpeg): si verificano tipo e dimensione.
@@ -136,6 +160,8 @@ export async function elaboraFile(file) {
     tipo_media: tipoMedia,
     dimensione_bytes: dimensione,
     hash_sha256: hash,
+    hash_percettivo: hashPerc,
+    data_scatto_exif: dataScatto,
     latitudine_exif: exif?.latitudine ?? null,
     longitudine_exif: exif?.longitudine ?? null,
     larghezza,
