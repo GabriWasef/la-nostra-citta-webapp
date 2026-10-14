@@ -51,13 +51,30 @@ const schema = z.object({
   GEOCODING_URL: z.url().default('https://nominatim.openstreetmap.org'),
   GEOCODING_EMAIL: z.union([z.email(), z.literal('')]).default(''),
 
-  AI_PROVIDER: z.enum(['regole', 'nessuno']).default('regole'),
+  // regole: filtri a regole inclusi nel progetto; mistral: in più un modello linguistico nel worker.
+  AI_PROVIDER: z.enum(['regole', 'mistral', 'nessuno']).default('regole'),
+  // Se il primario non risponde: groq (secondo servizio, fuori UE) oppure regole/nessuno (si ritenta più tardi).
+  AI_FALLBACK_PROVIDER: z.enum(['groq', 'regole', 'nessuno']).default('regole'),
+  MISTRAL_API_KEY: z.string().default(''),
+  MISTRAL_MODEL: z.string().min(1).default('mistral-small-latest'),
+  GROQ_API_KEY: z.string().default(''),
+  GROQ_MODEL: z.string().min(1).default('qwen/qwen3.8-27b'),
+  AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(55_000).default(15_000),
+  AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   AI_WORKER_INTERVAL_MS: z.coerce.number().int().min(0).default(5000),
   // Job elaborati al massimo per ogni invocazione del worker (su Vercel la funzione dura al massimo 60 s).
   AI_JOB_PER_RUN: z.coerce.number().int().min(1).max(100).default(5),
 
   RATE_LIMIT_ENABLED: booleano.default(true),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+}).superRefine((v, ctx) => {
+  // Le chiavi non hanno mai un valore predefinito: senza chiave il provider non si attiva.
+  if (v.AI_PROVIDER === 'mistral' && !v.MISTRAL_API_KEY) {
+    ctx.addIssue({ code: 'custom', path: ['MISTRAL_API_KEY'], message: 'obbligatoria con AI_PROVIDER=mistral' });
+  }
+  if (v.AI_PROVIDER === 'mistral' && v.AI_FALLBACK_PROVIDER === 'groq' && !v.GROQ_API_KEY) {
+    ctx.addIssue({ code: 'custom', path: ['GROQ_API_KEY'], message: 'obbligatoria con AI_FALLBACK_PROVIDER=groq' });
+  }
 });
 
 /** Su Vercel il sito risponde all'indirizzo del progetto: lo si deduce se APP_ORIGIN non è impostato. */
@@ -68,7 +85,7 @@ function variabiliAmbiente() {
     if (host) grezze.APP_ORIGIN = `https://${host}`;
   }
   // Vercel imposta variabili vuote per le integrazioni non collegate: si trattano come assenti.
-  for (const chiave of ['STORAGE_DRIVER', 'RATE_LIMIT_STORE']) if (grezze[chiave] === '') delete grezze[chiave];
+  for (const chiave of ['STORAGE_DRIVER', 'RATE_LIMIT_STORE', 'MISTRAL_MODEL', 'GROQ_MODEL']) if (grezze[chiave] === '') delete grezze[chiave];
   return grezze;
 }
 

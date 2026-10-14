@@ -1,17 +1,25 @@
-// Registro dei provider IA. Per collegare un servizio reale (API esterna o
-// microservizio Python) basta aggiungere qui un provider con la stessa interfaccia.
+// Registro dei provider IA.
+// - regole: filtri a regole nella richiesta e controllo tecnico delle immagini nel worker;
+// - mistral: gli stessi filtri a regole nella richiesta (la richiesta non dipende mai da un servizio
+//   esterno) più un modello linguistico, usato solo dal worker, con eventuale fallback (Groq);
+// - nessuno: nessuna analisi automatica.
 import { env } from '../config/env.js';
 import { classificazioneRegole } from './classificazione.js';
 import { moderazioneRegole } from './moderazione.js';
+import { creaLlmDaConfig } from './providers/index.js';
 import { visioneTecnica } from './visione.js';
 
-const nessuno = null;
+/** @param {object} cfg variabili d'ambiente validate @param {object} [dipendenze] fetch e limitatori (test) */
+export function creaProvider(cfg, dipendenze) {
+  const attivi = cfg.AI_PROVIDER !== 'nessuno';
+  return {
+    moderazione: attivi ? moderazioneRegole : null,
+    classificazione: attivi ? classificazioneRegole : null,
+    visione: attivi ? visioneTecnica : null,
+    // Modello linguistico usato dal worker (moderazione, classificazione, pertinenza delle immagini):
+    // { analizzaTesto(dati, contesto), verificaPertinenza(dati, contesto) } -> { modello, risposta }.
+    llm: creaLlmDaConfig(cfg, dipendenze),
+  };
+}
 
-export const provider = {
-  moderazione: env.AI_PROVIDER === 'regole' ? moderazioneRegole : nessuno,
-  classificazione: env.AI_PROVIDER === 'regole' ? classificazioneRegole : nessuno,
-  visione: env.AI_PROVIDER === 'regole' ? visioneTecnica : nessuno,
-  // Modello linguistico usato dal worker (moderazione, classificazione, pertinenza delle immagini):
-  // { analizzaTesto(dati, contesto), verificaPertinenza(dati, contesto) } -> { modello, risposta }.
-  llm: nessuno,
-};
+export const provider = creaProvider(env);

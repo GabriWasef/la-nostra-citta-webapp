@@ -3,6 +3,8 @@ import { after, afterEach, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { accedi, avvia, chiudi, creaUtente, inviaSegnalazione, pool } from './helpers.js';
 import { RinvioJob } from '../src/ai/errori.js';
+import { creaLlmDaConfig } from '../src/ai/providers/index.js';
+import { creaFetchFinto, json, rete, RISPOSTA_PERTINENZA, RISPOSTA_TESTO } from './mistral-finto.js';
 import { provider } from '../src/ai/index.js';
 import { elaboraTutti, riprendiJobBloccati, TENTATIVI_MASSIMI } from '../src/ai/worker.js';
 import { eseguiManutenzione } from '../src/services/manutenzione.service.js';
@@ -238,5 +240,50 @@ describe('Tentativi, rinvii e limiti', () => {
     assert.equal(dopo[2].stato, 'IN_CORSO');
     assert.equal(await riprendiJobBloccati(), 0);
     await pool.query("UPDATE job_elaborazione SET stato = 'COMPLETATO' WHERE id_segnalazione = ?", [id]);
+  });
+});
+
+describe('AI_PROVIDER=mistral con l’adapter reale (fetch finto)', () => {
+  const cfg = {
+    AI_PROVIDER: 'mistral', AI_FALLBACK_PROVIDER: 'regole', MISTRAL_API_KEY: 'chiave-di-prova', MISTRAL_MODEL: 'mistral-small-latest',
+    AI_TIMEOUT_MS: 1000, AI_MAX_RETRIES: 0,
+  };
+  const conFetch = (sequenza) => {
+    const fetch = creaFetchFinto(sequenza);
+    provider.llm = creaLlmDaConfig(cfg, { fetch, attendi: async () => {} });
+    return fetch;
+  };
+  afterEach(() => {
+    provider.llm = llmFinto;
+  });
+
+  test('provider non raggiungibile: la segnalazione si crea (201), le analisi finiscono DA_REVISIONARE', async () => {
+    conFetch([rete()]);
+    const id = await nuovaSegnalazione();
+    for (let i = 0; i < TENTATIVI_MASSIMI; i++) {
+      await svuota();
+      await rendiDisponibili();
+    }
+    const job = (await jobDi(id)).filter((j) => j.tipo_analisi !== 'ANALISI_IMMAGINE');
+    assert.deepEqual(job.map((j) => j.stato), ['ERRORE', 'ERRORE']);
+    assert.ok(job.every((j) => !j.ultimo_errore.includes('chiave-di-prova')));
+    const nonRiuscite = (await analisiDi(id)).filter((a) => a.risultato.errore === 'PROVIDER_NON_DISPONIBILE');
+    assert.deepEqual(nonRiuscite.map((a) => [a.tipo_analisi, a.esito, a.modello]).sort(), [
+      ['MODERAZIONE_TESTO', 'DA_REVISIONARE', 'mistral:mistral-small-latest'],
+      ['VERIFICA_PERTINENZA', 'DA_REVISIONARE', 'mistral:mistral-small-latest'],
+    ]);
+  });
+
+  test('provider funzionante: analisi registrate con il modello effettivo', async () => {
+    const fetch = conFetch([json(RISPOSTA_TESTO), json(RISPOSTA_PERTINENZA)]);
+    const id = await nuovaSegnalazione();
+    await svuota();
+    assert.equal(fetch.chiamate.length, 2);
+    const delModello = (await analisiDi(id)).filter((a) => a.modello === 'mistral:mistral-small-latest');
+    assert.deepEqual(delModello.map((a) => [a.tipo_analisi, a.esito]), [
+      ['MODERAZIONE_TESTO', 'OK'],
+      ['CLASSIFICAZIONE_TESTO', 'OK'],
+      ['VERIFICA_PERTINENZA', 'OK'],
+    ]);
   });
 });

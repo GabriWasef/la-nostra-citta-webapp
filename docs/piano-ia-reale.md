@@ -1,7 +1,7 @@
 # Piano: integrazione IA reale
 
 Stato: **scelte confermate** (tutte le opzioni consigliate del §4, S1–S7, e le proposte delle domande aperte).
-Avanzamento: fase 1 ✅ · fase 2 ✅ · fasi 3–7 da fare.
+Avanzamento: fase 1 ✅ · fase 2 ✅ · fase 3 ✅ · fasi 4–7 da fare.
 Data dell'analisi: 12/10/2026, sul branch `main` (commit `5506b09`).
 
 ## 1. Fasi
@@ -94,8 +94,8 @@ controller e route, `vercel.json` (né frequenza del cron né chiavi).
 
 ## 5. Differenze rispetto al prompt di lavoro
 
-1. **Modello Groq.** `meta-llama/llama-4-scout-17b-16e-instruct` risulta nella pagina delle deprecazioni di Groq con spegnimento il 17/07/2026 per i piani free e developer. Nella documentazione "Images and Vision" compare `qwen/qwen3.8-27b` (massimo 3 immagini per richiesta). Va verificato in fase 3 sull'endpoint `/models`; nel frattempo `GROQ_MODEL` non avrà un valore predefinito "fidato".
-2. **Modello Mistral.** `mistral-small-latest` ora punta, secondo fonti di terze parti, a Mistral Small 4 (`mistral-small-2603`, con input immagine). Propongo di configurare una versione datata in `MISTRAL_MODEL` per avere risultati riproducibili; da confermare sulla documentazione ufficiale.
+1. **Modello Groq.** `meta-llama/llama-4-scout-17b-16e-instruct` risulta nella pagina delle deprecazioni di Groq con spegnimento il 17/07/2026 per i piani free e developer. *Verificato il 14/10/2026:* la documentazione ufficiale "Images and Vision" di Groq elenca come unico modello con visione `qwen/qwen3.8-27b` (JSON mode supportato anche con immagini, massimo 3 immagini per richiesta): è il valore predefinito di `GROQ_MODEL`.
+2. **Modello Mistral.** *Verificato il 14/10/2026:* la documentazione ufficiale sulla visione usa l'alias `mistral-small-latest`; `mistral-small-2506` (Small 3.2) è deprecato e ritirato dal 31/07/2026, sostituito da Mistral Small 4, il cui nome datato non è ancora riportato nella pagina dei modelli. Valore predefinito di `MISTRAL_MODEL`: `mistral-small-latest`; in produzione conviene fissare la versione datata appena documentata.
 3. **Durata della funzione.** Con 15 s di timeout, 2 retry e il fallback, una sola chiamata può arrivare a ~90 s, oltre i 60 s di `maxDuration`. Ogni chiamata riceverà una scadenza (tempo residuo dell'invocazione − 10 s): se non basta per un altro tentativo, il job viene rimandato invece di fallire.
 4. **Job bloccati in `IN_CORSO`.** Oggi nessuno li riprende (criterio di accettazione non soddisfatto dal codice attuale): la manutenzione li rimetterà in coda dopo 10 minuti, usando `data_aggiornamento`.
 5. **`elaboraTutti()` non ha limite.** È usata da `avviaAnalisiDopoRisposta`, dal worker locale e dalla manutenzione: il limite `AI_JOB_PER_RUN` e il controllo del tempo residuo valgono per ogni invocazione; il worker locale riprende al ciclo successivo. La manutenzione notturna elaborerà anch'essa al massimo `AI_JOB_PER_RUN` job, il resto alla prossima segnalazione inserita.
