@@ -6,7 +6,7 @@ import { RinvioJob } from '../src/ai/errori.js';
 import { creaLlmDaConfig } from '../src/ai/providers/index.js';
 import { creaFetchFinto, json, rete, RISPOSTA_PERTINENZA, RISPOSTA_TESTO } from './mistral-finto.js';
 import { provider } from '../src/ai/index.js';
-import { elaboraTutti, riprendiJobBloccati, TENTATIVI_MASSIMI } from '../src/ai/worker.js';
+import { analisiDopoRisposta, elaboraTutti, riprendiJobBloccati, TENTATIVI_MASSIMI } from '../src/ai/worker.js';
 import { eseguiManutenzione } from '../src/services/manutenzione.service.js';
 
 let autore, agAutore;
@@ -285,5 +285,42 @@ describe('AI_PROVIDER=mistral con l’adapter reale (fetch finto)', () => {
       ['CLASSIFICAZIONE_TESTO', 'OK'],
       ['VERIFICA_PERTINENZA', 'OK'],
     ]);
+  });
+});
+
+describe('Durata dell’invocazione su Vercel (revisione finale)', () => {
+  // La funzione dura al massimo 60 s dall'inizio della richiesta, non da quando partono le analisi:
+  // l'invio (download e ricodifica degli allegati) può averne già consumati molti.
+  test('analisi dopo la risposta: il tempo si conta dall’inizio della richiesta', async () => {
+    const id = await nuovaSegnalazione();
+    assert.equal(await analisiDopoRisposta(Date.now() - 55_000), 0, 'restano 5 s: nessun job deve partire');
+    assert.ok((await jobDi(id)).every((j) => j.stato === 'IN_CODA' && j.tentativi === 0));
+    assert.ok((await analisiDopoRisposta(Date.now())) > 0);
+  });
+
+  test('manutenzione: le analisi rispettano il tempo già trascorso dall’inizio della chiamata del cron', async () => {
+    const id = await nuovaSegnalazione();
+    const esito = await eseguiManutenzione({ inizio: Date.now() - 55_000 });
+    assert.equal(esito.analisi_elaborate, 0);
+    assert.ok((await jobDi(id)).every((j) => j.stato === 'IN_CODA'));
+  });
+});
+
+describe('Concorrenza tra worker (revisione finale)', () => {
+  test('più invocazioni in parallelo: ogni job è elaborato una sola volta (SKIP LOCKED)', async () => {
+    const ids = [];
+    for (let i = 0; i < 4; i++) ids.push(await nuovaSegnalazione());
+    // Come più funzioni Vercel avviate insieme dopo invii ravvicinati.
+    await Promise.all(Array.from({ length: 4 }, () => elaboraTutti({ massimo: 50 })));
+    for (const id of ids) {
+      const job = await jobDi(id);
+      assert.ok(job.every((j) => j.stato === 'COMPLETATO' && j.tentativi === 1), JSON.stringify(job.map((j) => [j.stato, j.tentativi])));
+      const analisi = await analisiDi(id);
+      for (const tipo of ['VERIFICA_PERTINENZA', 'VERIFICA_AUTENTICITA', 'ANALISI_IMMAGINE']) {
+        assert.equal(analisi.filter((a) => a.tipo_analisi === tipo).length, 1, `${tipo} della segnalazione ${id}`);
+      }
+      assert.equal(analisi.filter((a) => a.tipo_analisi === 'MODERAZIONE_TESTO' && a.modello === 'finto:modello').length, 1);
+    }
+    assert.equal(chiamate.filter((c) => c.tipo === 'testo').length, 4, 'una sola chiamata di testo per segnalazione');
   });
 });

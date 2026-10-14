@@ -128,6 +128,7 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 | `npm run db:svuota` | **Elimina segnalazioni e dati collegati** mantenendo utenti, categorie, quartieri e stati (chiede conferma; `-- --azzera-log` svuota anche il registro) |
 | `npm run db:svuota:remoto` | Come `db:svuota`, sul database di `.env.production` (poi svuota Vercel Blob dal pannello) |
 | `npm run db:migrate:remoto` | Come `db:migrate`, ma sul database indicato in `.env.production` |
+| `npm run db:seed:remoto` | Come `db:seed`, ma sul database indicato in `.env.production` |
 | `npm run admin:create:remoto` | Come `admin:create`, ma sul database indicato in `.env.production` |
 | `npm run worker` | Worker IA come processo separato (`-- --once` per svuotare la coda e uscire) |
 | `npm test` | Esegue i test sul database `TEST_DB_NAME`, che viene **svuotato** |

@@ -46,10 +46,11 @@ Dal tuo PC, con `.env.production` compilato (DB_HOST, DB_USER, DB_PASSWORD, DB_N
 ```bash
 npm ci
 npm run db:migrate:remoto
+npm run db:seed:remoto
 npm run admin:create:remoto
 ```
 
-Il primo comando applica le migrazioni (lo script SQL ufficiale più le correzioni numerate). Il secondo chiede e-mail, nome, cognome e password dell'amministratore.
+Il primo comando applica le migrazioni (lo script SQL ufficiale più le correzioni numerate). Il secondo carica le categorie e i quartieri iniziali (si può ripetere: non crea doppioni). Il terzo chiede e-mail, nome, cognome e password dell'amministratore.
 Se `db:migrate:remoto` segnala un errore sui trigger, il database non è adatto (vedi punto 1).
 
 ## 4. Creare il progetto su Vercel

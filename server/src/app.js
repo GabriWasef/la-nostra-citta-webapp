@@ -19,6 +19,12 @@ export function createApp() {
   const app = express();
   const sessionStore = new MySqlSessionStore(pool);
 
+  // Istante d'inizio della richiesta: su Vercel la funzione dura al massimo maxDuration da qui,
+  // e le analisi avviate dopo la risposta devono stare nel tempo che resta.
+  app.use((req, res, next) => {
+    req.inizioRichiesta = Date.now();
+    next();
+  });
   app.disable('x-powered-by');
   app.set('trust proxy', env.trustProxy ? 1 : false);
 

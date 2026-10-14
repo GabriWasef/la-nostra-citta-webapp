@@ -1,6 +1,6 @@
-// Filtro di moderazione del testo a regole (RF11).
-// È un segnaposto deterministico: un modello NLP reale potrà sostituirlo
-// implementando la stessa interfaccia { modello, analizza(testo) }.
+// Filtro di moderazione del testo a regole (RF11), deterministico ed eseguito nella richiesta:
+// blocca subito minacce e linguaggio d'odio (422). Resta attivo anche con AI_PROVIDER=mistral,
+// perché la richiesta non deve dipendere da un servizio esterno; il modello lavora nel worker.
 import { normalizza, parole } from './testo.js';
 
 // Elenchi volutamente brevi: servono a dimostrare il flusso, non a coprire la lingua.

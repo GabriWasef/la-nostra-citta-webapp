@@ -1,6 +1,6 @@
-// Classificazione tematica a parole chiave (RF12).
-// Segnaposto di un modello NLP: restituisce categorie suggerite con un
-// punteggio di affidabilità, che il moderatore conferma o corregge.
+// Classificazione tematica a parole chiave (RF12), eseguita nella richiesta.
+// Restituisce categorie suggerite con un punteggio di affidabilità, che il moderatore
+// conferma o corregge. Con AI_PROVIDER=mistral il worker aggiunge i suggerimenti del modello.
 import { normalizza, parole } from './testo.js';
 
 // Radici delle parole (confronto per prefisso), per nome di categoria.

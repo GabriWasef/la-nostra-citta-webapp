@@ -18,8 +18,9 @@ import { provider } from './index.js';
 import { DISTANZA_MASSIMA } from './phash.js';
 
 export const TENTATIVI_MASSIMI = 3;
-// Su Vercel una funzione dura al massimo 60 s (vercel.json): ci si ferma quando ne restano meno di 10.
-const DURATA_INVOCAZIONE_MS = 60_000;
+// Su Vercel una funzione dura al massimo 60 s (maxDuration in vercel.json) dall'inizio della richiesta:
+// ci si ferma quando ne restano meno di 10.
+export const DURATA_INVOCAZIONE_MS = 60_000;
 export const MARGINE_MS = 10_000;
 // Attesa prima di riprovare un job fallito: cresce a ogni tentativo.
 const ATTESA_TENTATIVO_S = 60;
@@ -251,12 +252,20 @@ export function avviaWorker(intervalloMs) {
 }
 
 /**
+ * Analisi entro il tempo che resta alla funzione: la durata si conta dall'inizio della richiesta,
+ * perché l'invio (download e ricodifica degli allegati) ne ha già consumata una parte.
+ * @param {number} inizio ms epoch in cui è iniziata la richiesta
+ */
+export const analisiDopoRisposta = (inizio) => elaboraTutti({ scadenza: inizio + DURATA_INVOCAZIONE_MS });
+
+/**
  * Su Vercel nessun processo resta acceso tra una richiesta e l'altra: le analisi in coda
  * si eseguono subito dopo la risposta (waitUntil), entro il tempo della funzione e al massimo
  * AI_JOB_PER_RUN per volta. La manutenzione periodica recupera quelle rimaste indietro.
  * Altrove se ne occupa il worker a intervalli.
+ * @param {number} [inizio] inizio della richiesta (req.inizioRichiesta)
  */
-export function avviaAnalisiDopoRisposta() {
+export function avviaAnalisiDopoRisposta(inizio = Date.now()) {
   if (!env.isVercel) return;
-  waitUntil(elaboraTutti().catch((err) => logger.error({ err }, 'Analisi dopo la risposta non riuscita')));
+  waitUntil(analisiDopoRisposta(inizio).catch((err) => logger.error({ err }, 'Analisi dopo la risposta non riuscita')));
 }

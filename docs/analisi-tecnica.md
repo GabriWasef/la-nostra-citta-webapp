@@ -493,7 +493,7 @@ la-nostra-citta-webapp/
 │   │   ├── repositories/
 │   │   ├── validators/             # schemi Zod
 │   │   ├── storage/                # LocalStorage (+ futuro S3)
-│   │   ├── ai/                     # interfacce provider + stub (fase 15)
+│   │   ├── ai/                     # provider a regole e LLM (Mistral/Groq), regole di esito, worker (fase 15 + IA reale)
 │   │   ├── utils/                  # AppError, logger, audit
 │   │   ├── app.js                  # crea l'app Express (usata anche dai test)
 │   │   └── server.js               # avvio HTTP
@@ -540,6 +540,8 @@ Ogni fase lascia il progetto avviabile.
 | 14 | Documentazione | `README.md`, `docs/api.md` | Installazione, avvio, backup, endpoint | — | — | Un nuovo sviluppatore avvia il progetto seguendo il README |
 | 15 | Predisposizione IA | `server/src/ai/*`, migrazione 009, `scripts/worker.js` | Interfacce provider, coda job, stub moderazione e classificazione, EXIF come analisi | — | Complessità eccessiva | Una segnalazione crea un job; il worker scrive in `analisi_ia`; il moderatore vede i risultati |
 | 16 | Adattamento mobile (futuro) | — | **Non in questa fase.** Resta disponibile l'API `/api/v1` documentata; token Bearer aggiungibile | — | — | Solo documentato |
+
+> La fase 15 (predisposizione) è stata poi completata dall'integrazione dell'IA reale: migrazione 013, modello linguistico Mistral con fallback Groq, verifica di autenticità. Vedi §5.3, [`piano-ia-reale.md`](piano-ia-reale.md) e [`AI-PROVIDERS.md`](AI-PROVIDERS.md).
 
 ---
 
