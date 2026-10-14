@@ -10,6 +10,8 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 - Analisi tecnica e stato del progetto: [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md)
 - Riferimento delle API REST: [`docs/api.md`](docs/api.md)
 - Provider IA (Mistral, Groq), limiti, consumi e privacy: [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md)
+- Modello ER completo (15 tabelle): [`database/er-completo-v2.svg`](database/er-completo-v2.svg)
+- Modello ER ridotto (moderazione e flusso IA): [`database/er-ridotto-v2.svg`](database/er-ridotto-v2.svg)
 
 ## Stack
 
@@ -155,12 +157,21 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 │   └── tests/
 ├── database/
 │   ├── schema/                script SQL ufficiale dell'esercizio (riferimento, invariato)
-│   ├── migrations/            001 schema iniziale + 002–009 correzioni ed estensioni
+│   ├── er-completo-v2.svg     modello ER completo aggiornato (15 tabelle)
+│   ├── er-ridotto-v2.svg      modello ER ridotto (moderazione e flusso IA)
+│   ├── migrations/            001 schema iniziale + 002–013 correzioni ed estensioni
 │   ├── seeds/                 dati iniziali
 │   └── docker-init/
 ├── docs/                      requisiti, analisi tecnica, API
 └── uploads/                   file caricati (ignorati da git)
 ```
+
+## Modelli ER
+
+I due diagrammi ER in `database/` rappresentano lo schema dopo le migrazioni **001–012**, incluse le parti su moderazione, analisi IA e coda `job_elaborazione`. Non mostrano ancora le colonne aggiunte dalla 013 (`allegato.hash_percettivo`, `allegato.data_scatto_exif`, `job_elaborazione.disponibile_dal`) né il nuovo tipo di analisi `VERIFICA_AUTENTICITA`.
+
+- [`database/er-completo-v2.svg`](database/er-completo-v2.svg): modello completo con tutte le 15 tabelle.
+- [`database/er-ridotto-v2.svg`](database/er-ridotto-v2.svg): modello ridotto, focalizzato su moderazione e flusso IA.
 
 ## Database
 
