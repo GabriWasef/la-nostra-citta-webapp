@@ -9,6 +9,7 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 - Analisi dei requisiti: [`docs/analisi_requisiti_esercizio_1.md`](docs/analisi_requisiti_esercizio_1.md)
 - Analisi tecnica e stato del progetto: [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md)
 - Riferimento delle API REST: [`docs/api.md`](docs/api.md)
+- Provider IA (Mistral, Groq), limiti, consumi e privacy: [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md)
 
 ## Stack
 
@@ -148,7 +149,7 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 │   │   ├── routes/ → controllers/ → services/ → repositories/
 │   │   ├── validators/        schemi Zod
 │   │   ├── storage/           archivio file (locale; interfaccia pronta per S3)
-│   │   ├── ai/                provider IA (regole) e worker della coda
+│   │   ├── ai/                provider IA (regole, Mistral/Groq), regole di esito e worker della coda
 │   │   └── utils/
 │   ├── scripts/               migrate, seed, create-admin, worker
 │   └── tests/
@@ -228,7 +229,7 @@ Salvare anche la cartella `uploads/` (oppure il bucket, se si usa un object stor
 
 - **E-mail di recupero password:** l'invio non è configurato; in sviluppo il link compare nel log del server. Serve un server SMTP (es. con nodemailer).
 - **Video:** vengono verificati tipo e dimensione, ma non ricodificati. I metadati dei video, che possono includere la posizione, non vengono rimossi: serve ffmpeg.
-- **IA:** i provider inclusi sono a regole (elenchi di parole, parole chiave, controlli tecnici sulle immagini). Servono a dimostrare il flusso. Si sostituiscono con modelli reali in `server/src/ai/` senza toccare API e database.
+- **IA:** con `AI_PROVIDER=regole` (predefinito) le analisi sono a regole (parole, parole chiave, controlli tecnici e di autenticità delle immagini). Con `AI_PROVIDER=mistral` il worker usa anche un modello linguistico (Mistral, fallback facoltativo Groq) per moderazione, categorie e pertinenza delle immagini; la richiesta usa sempre e solo le regole. I risultati sono suggerimenti per il comitato. I video non sono analizzati. Dettagli, limiti dei piani gratuiti e privacy in [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md).
 - **Antivirus:** il punto di aggancio (`scansionaFile`) è predisposto ma non collegato. L'archivio degli allegati ha due implementazioni (disco locale e Vercel Blob privato) con la stessa interfaccia `storage`; un archivio S3 si aggiunge allo stesso modo.
 - **Vercel:** il comportamento sul servizio reale (Blob, database remoto, cron) non è verificabile dai test automatici, che usano simulatori: dopo il primo deploy usa **Amministrazione → Diagnostica**.
 - **App mobile o desktop:** non fa parte di questa fase. L'API REST è indipendente dal frontend; per un client nativo basterà aggiungere un'autenticazione a token in `middlewares/auth.js`.
