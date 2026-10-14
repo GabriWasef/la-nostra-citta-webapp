@@ -2,6 +2,8 @@
 
 Guida passo per passo. Tempo stimato: 30–40 minuti la prima volta.
 
+La lista completa delle operazioni manuali (account, chiavi, accordi privacy, dominio, verifiche) è in [`docs/CONFIGURAZIONE-MANUALE.md`](docs/CONFIGURAZIONE-MANUALE.md).
+
 ## Come funziona su Vercel
 
 | Parte | Dove sta |
@@ -10,7 +12,7 @@ Guida passo per passo. Tempo stimato: 30–40 minuti la prima volta.
 | API REST (`/api/v1/...`) | Una sola funzione serverless (`api/index.js`) che esegue la stessa app Express usata in locale |
 | Database | **MySQL 8 esterno** (Vercel non offre MySQL) |
 | Foto e video | **Vercel Blob in modalità privata**; il browser li carica direttamente (una richiesta a una funzione non può superare 4,5 MB) e li legge tramite link firmati a scadenza breve |
-| Analisi IA a regole | Partono subito dopo ogni segnalazione; una manutenzione giornaliera (cron) recupera quelle rimaste indietro e pulisce sessioni e file temporanei scaduti |
+| Analisi IA (regole e, se attivo, modello linguistico) | Partono subito dopo ogni segnalazione, entro i 60 s della funzione; una manutenzione giornaliera (cron) recupera quelle rimaste indietro e pulisce sessioni e file temporanei scaduti |
 | Limiti di richieste (anti-abuso) | Salvati in MySQL (la memoria di una funzione non è condivisa) |
 
 ## 1. Un database MySQL 8 raggiungibile da internet
@@ -56,7 +58,7 @@ Se `db:migrate:remoto` segnala un errore sui trigger, il database non è adatto 
 ## 4. Creare il progetto su Vercel
 
 1. Su <https://vercel.com> → **Add New… → Project** → importa il repository GitHub `la-nostra-citta-webapp`.
-2. Branch di produzione: `main`. **Non cambiare** Framework Preset, Build Command, Output Directory: sono già in `vercel.json` (Framework "Other", `npm run build:vercel`, output `public`).
+2. Branch di produzione: `main`. **Non cambiare** Framework Preset, Build Command, Output Directory: sono già in `vercel.json` (Framework "Other", `npm run build:vercel`, output `public`). Le funzioni girano per default nella regione `iad1` (Stati Uniti): per trattare i dati in Europa scegli una regione europea in **Settings → Functions**, vicina al database.
 3. Prima di premere Deploy, apri **Environment Variables** e inserisci (ambiente *Production*; per le anteprime vedi nota in fondo):
 
 | Variabile | Valore |

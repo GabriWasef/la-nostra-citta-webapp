@@ -141,3 +141,14 @@ oltre la soglia di 5. Proposta: 8.
 | `ai/worker.js` | tutti gli esecutori, tentativi, rinvii, `AI_JOB_PER_RUN`, scadenza, concorrenza, ripresa | segnalazione eliminata mentre il job è in coda (ritorna `null`, non testato) |
 | `ai/esito.js`, `ai/autenticita.js`, `ai/phash.js` | tabelle complete degli esiti, EXIF, duplicati, segnale | soglia del pHash solo su immagini sintetiche (D7) |
 | Client (`segnalazione.js`) | verificato con uno screenshot in Chromium (fase 6) | nessun test automatico del pannello |
+
+## 6. Verifica finale
+
+| Controllo | Esito |
+|---|---|
+| `npm test` | 221 superati, 0 falliti |
+| `npm run db:reset && npm run db:seed` su database vuoto (`lnc_finale`) | 13 migrazioni, 10 categorie, 139 quartieri |
+| Script ufficiale e migrazioni 001–012 | invariati (`git diff --stat origin/main -- database/schema database/migrations/00* 01[0-2]*` vuoto) |
+| Segreti nel diff rispetto a `main` | nessuna chiave con valore, nessuna stringa simile a un segreto (solo URL e codici dei motivi) |
+| Variabili citate nei documenti | tutte presenti nel codice, tranne `AI_MAX_OUTPUT_TOKENS` (citata per dire che non esiste, D6) e `BLOB_READ_WRITE_TOKEN_STORE_ID` (esempio di prefisso sbagliato) |
+| Documentazione | README (sezione "Modelli IA, costi e limiti"), [`AI-PROVIDERS.md`](AI-PROVIDERS.md) e [`CONFIGURAZIONE-MANUALE.md`](CONFIGURAZIONE-MANUALE.md) usano gli stessi nomi e valori predefiniti di `server/src/config/env.js` |

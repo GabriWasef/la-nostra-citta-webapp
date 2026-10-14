@@ -9,7 +9,9 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 - Analisi dei requisiti: [`docs/analisi_requisiti_esercizio_1.md`](docs/analisi_requisiti_esercizio_1.md)
 - Analisi tecnica e stato del progetto: [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md)
 - Riferimento delle API REST: [`docs/api.md`](docs/api.md)
-- Provider IA (Mistral, Groq), limiti, consumi e privacy: [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md)
+- Modelli IA, costi e limiti: [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md)
+- Configurazione manuale (account, chiavi, Vercel, database): [`docs/CONFIGURAZIONE-MANUALE.md`](docs/CONFIGURAZIONE-MANUALE.md)
+- Revisione finale dell'integrazione IA: [`docs/revisione-finale.md`](docs/revisione-finale.md)
 - Modello ER completo (15 tabelle): [`database/er-completo-v2.svg`](database/er-completo-v2.svg)
 - Modello ER ridotto (moderazione e flusso IA): [`database/er-ridotto-v2.svg`](database/er-ridotto-v2.svg)
 
@@ -236,6 +238,52 @@ Salvare anche la cartella `uploads/` (oppure il bucket, se si usa un object stor
 **`You do not have the SUPER privilege and binary logging is enabled`** durante `npm run db:migrate`: abilita `log_bin_trust_function_creators` (vedi la sezione Database). Con il `docker-compose.yml` del progetto è già attivo.
 
 **Il login riesce ma la sessione non resta aperta:** con `NODE_ENV=production` il cookie è `Secure` e viaggia solo su HTTPS. In locale usa `NODE_ENV=development`; in produzione metti l'app dietro un reverse proxy HTTPS con `TRUST_PROXY=true`.
+
+## Modelli IA, costi e limiti
+
+Il sito usa l'intelligenza artificiale per aiutare il comitato a esaminare le segnalazioni: segnala testi offensivi,
+propone le categorie e controlla che le foto mostrino il problema descritto. L'IA non decide nulla. Ogni analisi
+produce un esito suggerito (OK, da revisionare, bloccato), e sono sempre i moderatori a pubblicare, rifiutare o
+nascondere una segnalazione.
+
+**Due modalità.** Con `AI_PROVIDER=regole`, il valore predefinito, tutte le analisi sono controlli a regole: parole
+vietate, parole chiave, qualità e metadati delle foto. Non c'è nessun servizio esterno e nessun costo. Con
+`AI_PROVIDER=mistral` si aggiunge un modello linguistico che legge testo e foto. La richiesta di invio usa comunque
+solo le regole, così il sito funziona anche se il fornitore è irraggiungibile. Le analisi del modello avvengono
+subito dopo, in una coda.
+
+**Perché Mistral.** Un solo modello (`mistral-small-latest`, oggi Mistral Small 4) legge testo e immagini nella stessa
+chiamata e risponde in un formato controllabile. L'azienda ha sede nell'Unione europea e c'è una modalità gratuita
+per provare. Groq (`qwen/qwen3.8-27b`) è un fornitore di riserva facoltativo, più veloce, ma tratta i dati negli Stati
+Uniti: per questo è disattivato per default. Google Gemini è stato escluso perché nell'Unione europea la sua quota
+gratuita non è utilizzabile. Un modello installato su server propri richiederebbe una GPU sempre accesa, con costi e
+manutenzione sproporzionati.
+
+**Quanto costa.** Una segnalazione con una foto richiede due chiamate al modello, circa 4.500 token in tutto. Ai
+prezzi di ottobre 2026 sono circa 1 dollaro ogni 1.000 segnalazioni con Mistral e circa 4,50 con Groq. Il costo
+fisso principale è l'hosting. Il piano gratuito di Vercel (Hobby) è riservato all'uso personale e non commerciale:
+per un comitato va valutato il piano Pro, 20 dollari al mese per membro. Si aggiungono il database MySQL e lo spazio
+per le foto.
+
+**Quanto si può fare.** Il progetto si limita da solo: per default 20 richieste al minuto e 500 al giorno per
+fornitore, cioè circa 10 segnalazioni al minuto e 250 al giorno con una foto ciascuna. Quando il limite è raggiunto
+nessuna segnalazione si perde: le analisi restano in coda e ripartono nel minuto successivo o dopo la mezzanotte UTC.
+Lo stesso vale se il fornitore risponde "troppe richieste" o non risponde: dopo tre tentativi l'analisi compare al
+comitato come "da revisionare".
+
+| In breve | Valore |
+|---|---|
+| Modello principale | Mistral `mistral-small-latest` (variabile `MISTRAL_MODEL`) |
+| Riserva facoltativa | Groq `qwen/qwen3.8-27b` (`AI_FALLBACK_PROVIDER=groq`, `GROQ_MODEL`) |
+| Costo IA stimato | circa 1 USD ogni 1.000 segnalazioni con una foto (Mistral) |
+| Limiti del progetto | `AI_MAX_RPM=20`, `AI_MAX_RPD=500` per fornitore; `AI_JOB_PER_RUN=5` analisi per esecuzione |
+| Dati inviati al modello | solo testo, nomi delle categorie e foto ridotta senza metadati; mai nome, e-mail o id dell'autore |
+| Ultima verifica dei valori | 14/10/2026 (da ripetere prima di ogni rilascio e ogni 3 mesi) |
+
+I prezzi, i limiti di ciascun fornitore (anche quelli non pubblicati), il calcolo dei token, gli scenari di costo, le
+query per controllare l'uso e la procedura per cambiare modello sono in [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md).
+I passaggi da fare a mano (account, chiavi, Vercel, database, adempimenti privacy) sono in
+[`docs/CONFIGURAZIONE-MANUALE.md`](docs/CONFIGURAZIONE-MANUALE.md).
 
 ## Limiti noti e sviluppi futuri
 
