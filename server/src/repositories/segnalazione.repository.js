@@ -16,9 +16,13 @@ const SELECT_BASE = `
          (st.pubblica = TRUE AND s.nascosta = FALSE) AS pubblica, s.nascosta, s.motivo_nascondimento, st.finale,
          (SELECT COUNT(*) FROM sostegno so WHERE so.id_segnalazione = s.id_segnalazione) AS numero_sostegni,
          EXISTS (SELECT 1 FROM sostegno so WHERE so.id_segnalazione = s.id_segnalazione AND so.id_utente = ?) AS sostenuta,
-         EXISTS (SELECT 1 FROM analisi_ia ai
-                  WHERE ai.id_segnalazione = s.id_segnalazione
-                    AND ai.esito IN ('DA_REVISIONARE', 'BLOCCATO') AND ai.esito_revisione IS NULL) AS da_revisionare_ia
+         -- Analisi del testo e dei suoi allegati (pertinenza, autenticità, controllo tecnico delle immagini).
+         (EXISTS (SELECT 1 FROM analisi_ia ai
+                   WHERE ai.id_segnalazione = s.id_segnalazione
+                     AND ai.esito IN ('DA_REVISIONARE', 'BLOCCATO') AND ai.esito_revisione IS NULL)
+          OR EXISTS (SELECT 1 FROM analisi_ia ai JOIN allegato al ON al.id_allegato = ai.id_allegato
+                      WHERE al.id_segnalazione = s.id_segnalazione
+                        AND ai.esito IN ('DA_REVISIONARE', 'BLOCCATO') AND ai.esito_revisione IS NULL)) AS da_revisionare_ia
     FROM segnalazione s
     JOIN utente u ON u.id_utente = s.id_autore
     JOIN quartiere q ON q.id_quartiere = s.id_quartiere

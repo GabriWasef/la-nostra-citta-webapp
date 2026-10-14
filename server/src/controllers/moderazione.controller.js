@@ -38,12 +38,13 @@ export async function elimina(req, res) {
   res.status(204).end();
 }
 
-export const analisi = async (req, res) => res.json({ dati: await segnalazioneService.analisi(req.valid.params.id) });
+// { dati: analisi, riepilogo: esito complessivo suggerito (non applicato in automatico) }
+export const analisi = async (req, res) => res.json(await segnalazioneService.analisi(req.valid.params.id));
 
 export async function revisionaAnalisi(req, res) {
   const a = await segnalazioneService.revisionaAnalisi(req.valid.params.id, req.valid.body.esito_revisione, req.user);
   await audit(req, 'ANALISI_IA_REVISIONATA', 'analisi_ia', a.id_analisi, req.valid.body);
-  res.json({ dati: await segnalazioneService.analisi(a.id_segnalazione) });
+  res.json(await segnalazioneService.analisi(a.id_segnalazione));
 }
 
 export async function eliminaAllegato(req, res) {

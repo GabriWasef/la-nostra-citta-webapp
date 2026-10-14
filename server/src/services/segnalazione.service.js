@@ -1,3 +1,4 @@
+import { riepilogo } from '../ai/esito.js';
 import { provider } from '../ai/index.js';
 import { conOperatore, withTransaction } from '../config/db.js';
 import { isModeratore } from '../middlewares/auth.js';
@@ -410,10 +411,12 @@ export async function impostaCategorie(id, idCategorie, moderatore) {
   });
 }
 
+/** Analisi IA della segnalazione e dei suoi allegati, con l'esito complessivo suggerito al comitato. */
 export async function analisi(id) {
   const s = await segnalazioneRepository.findAccesso(id);
   if (!s) throw NON_TROVATA();
-  return analisiRepository.listBySegnalazione(id);
+  const [dati, job] = await Promise.all([analisiRepository.listBySegnalazione(id), analisiRepository.jobPerSegnalazione(id)]);
+  return { dati, riepilogo: riepilogo({ analisi: dati, job }) };
 }
 
 export async function revisionaAnalisi(idAnalisi, esito, moderatore) {

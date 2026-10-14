@@ -198,6 +198,39 @@ describe('Verifica di autenticità nel worker', () => {
     assert.deepEqual(a.risultato.motivi_esito, ['FOTO_GIA_USATA']);
   });
 
+  test('pannello del comitato: riepilogo, flag nella lista anche per analisi degli allegati, correzione', async () => {
+    const id = await invia(agAutore, { latitudine: DUOMO[0], longitudine: DUOMO[1] }, [
+      { buffer: await jpeg({ gps: CASTELLO }), nome: 'lontana.jpg' },
+    ]);
+    await svuotaCoda();
+    const { body } = await agMod.get(`/api/v1/moderazione/segnalazioni/${id}/analisi`);
+    assert.equal(body.riepilogo.esito, 'DA_REVISIONARE');
+    assert.ok(body.riepilogo.motivi.includes('EXIF_POSIZIONE_LONTANA'));
+    assert.equal(body.riepilogo.analisi_in_corso, 0);
+    // L'unica analisi da revisionare è sull'allegato: la segnalazione compare comunque come "da revisionare".
+    assert.ok(body.dati.filter((a) => a.esito !== 'OK').every((a) => a.id_allegato !== null));
+    const coda = await agMod.get('/api/v1/moderazione/segnalazioni');
+    assert.equal(coda.body.dati.find((x) => x.id_segnalazione === id).da_revisionare_ia, true);
+
+    const autenticita = body.dati.find((a) => a.tipo_analisi === 'VERIFICA_AUTENTICITA');
+    const corretta = await agMod.patch(`/api/v1/moderazione/analisi/${autenticita.id_analisi}`).send({ esito_revisione: 'CORRETTA' });
+    assert.equal(corretta.status, 200);
+    assert.equal(corretta.body.dati.find((a) => a.id_analisi === autenticita.id_analisi).esito_revisione, 'CORRETTA');
+    assert.ok(!corretta.body.riepilogo.motivi.includes('EXIF_POSIZIONE_LONTANA'));
+    assert.equal(corretta.body.riepilogo.da_revisionare, 0);
+    const dopo = await agMod.get('/api/v1/moderazione/segnalazioni');
+    assert.equal(dopo.body.dati.find((x) => x.id_segnalazione === id).da_revisionare_ia, false);
+  });
+
+  test('riepilogo con analisi ancora in coda: mai OK', async () => {
+    const id = await invia(agAutore, {}, [{ buffer: await immagineConTrama(6), nome: 'in-coda.jpg' }]);
+    const { body } = await agMod.get(`/api/v1/moderazione/segnalazioni/${id}/analisi`);
+    assert.ok(body.riepilogo.analisi_in_corso > 0);
+    assert.equal(body.riepilogo.esito, 'DA_REVISIONARE');
+    assert.ok(body.riepilogo.motivi.includes('ANALISI_IN_CORSO'));
+    await svuotaCoda();
+  });
+
   test('data di scatto e hash salvati all’upload; la data di scatto la vede solo il comitato', async () => {
     const foto = await immagineConTrama(5, { exif: { IFD2: { DateTimeOriginal: '2026:05:01 10:30:00' } } });
     const id = await invia(agAutore, {}, [{ buffer: foto, nome: 'datata.jpg' }]);
