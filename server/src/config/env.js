@@ -61,6 +61,14 @@ const schema = z.object({
   GROQ_MODEL: z.string().min(1).default('qwen/qwen3.8-27b'),
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(55_000).default(15_000),
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  // Richieste al minuto e al giorno verso ciascun provider (0 = nessun limite). Valori comuni,
+  // sostituibili per provider (MISTRAL_MAX_RPM, GROQ_MAX_RPD, ...). Vedi docs/AI-PROVIDERS.md.
+  AI_MAX_RPM: z.coerce.number().int().min(0).default(20),
+  AI_MAX_RPD: z.coerce.number().int().min(0).default(500),
+  MISTRAL_MAX_RPM: z.coerce.number().int().min(0).optional(),
+  MISTRAL_MAX_RPD: z.coerce.number().int().min(0).optional(),
+  GROQ_MAX_RPM: z.coerce.number().int().min(0).optional(),
+  GROQ_MAX_RPD: z.coerce.number().int().min(0).optional(),
   // Distanza oltre la quale la posizione GPS della foto è incoerente con quella della segnalazione.
   EXIF_MAX_DISTANCE_M: z.coerce.number().positive().default(100),
   AI_WORKER_INTERVAL_MS: z.coerce.number().int().min(0).default(5000),
@@ -87,7 +95,7 @@ function variabiliAmbiente() {
     if (host) grezze.APP_ORIGIN = `https://${host}`;
   }
   // Vercel imposta variabili vuote per le integrazioni non collegate: si trattano come assenti.
-  for (const chiave of ['STORAGE_DRIVER', 'RATE_LIMIT_STORE', 'MISTRAL_MODEL', 'GROQ_MODEL']) if (grezze[chiave] === '') delete grezze[chiave];
+  for (const chiave of ['STORAGE_DRIVER', 'RATE_LIMIT_STORE', 'MISTRAL_MODEL', 'GROQ_MODEL', 'MISTRAL_MAX_RPM', 'MISTRAL_MAX_RPD', 'GROQ_MAX_RPM', 'GROQ_MAX_RPD']) if (grezze[chiave] === '') delete grezze[chiave];
   return grezze;
 }
 

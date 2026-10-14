@@ -55,7 +55,7 @@ export function creaProviderOpenAI({
     if (limitatore) {
       const p = await limitatore.prenota();
       // Limite locale (AI_MAX_RPM/RPD): non si ritenta, si passa al fallback o si rimanda il job.
-      if (!p.ok) throw errore('limite di richieste configurato raggiunto', { stato: 'LIMITE_LOCALE', limite: true, ritardoMs: p.ritardoMs });
+      if (!p.ok) throw errore(`limite configurato di richieste raggiunto (${p.limite ?? 'locale'})`, { stato: 'LIMITE_LOCALE', limite: true, ritardoMs: p.ritardoMs });
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, residuo));
