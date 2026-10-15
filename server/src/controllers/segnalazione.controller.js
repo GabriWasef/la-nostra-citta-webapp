@@ -42,7 +42,7 @@ export async function crea(req, res) {
       moderazione: esito.moderazione,
     });
     // Su Vercel non c'è un worker in sottofondo: le analisi in coda partono dopo la risposta.
-    avviaAnalisiDopoRisposta();
+    avviaAnalisiDopoRisposta(req.inizioRichiesta);
     const segnalazione = await segnalazioneService.dettaglio(esito.id_segnalazione, req.user);
     risposta = { segnalazione, categorie_suggerite: esito.categorie_suggerite };
   } catch (err) {

@@ -1,3 +1,4 @@
+import { riepilogo } from '../ai/esito.js';
 import { provider } from '../ai/index.js';
 import { conOperatore, withTransaction } from '../config/db.js';
 import { isModeratore } from '../middlewares/auth.js';
@@ -136,11 +137,11 @@ export async function dettaglio(id, utente) {
   const moderatore = isModeratore(utente);
   return {
     ...presenta(s, utente, { categorie: categorie.get(id) }),
-    // Le coordinate EXIF possono rivelare una posizione precisa: solo per il comitato.
-    allegati: allegati.map(({ latitudine_exif, longitudine_exif, ...a }) => ({
+    // Coordinate e data di scatto EXIF possono rivelare dove e quando era l'autore: solo per il comitato.
+    allegati: allegati.map(({ latitudine_exif, longitudine_exif, data_scatto_exif, ...a }) => ({
       ...a,
       url: `/api/v1/allegati/${a.id_allegato}`,
-      ...(moderatore ? { latitudine_exif, longitudine_exif } : {}),
+      ...(moderatore ? { latitudine_exif, longitudine_exif, data_scatto_exif } : {}),
     })),
   };
 }
@@ -287,6 +288,21 @@ export async function crea(dati, files, autore) {
           await analisiRepository.accoda({ tipo_analisi: 'ANALISI_IMMAGINE', id_segnalazione: id, id_allegato: m.id_allegato }, conn);
         }
       }
+      // Con un modello linguistico le analisi si fanno nel worker, mai nella richiesta:
+      // l'invio non dipende da latenza ed errori di un servizio esterno.
+      if (provider.llm) {
+        // Una sola chiamata produce moderazione e classificazione del testo.
+        await analisiRepository.accoda({ tipo_analisi: 'MODERAZIONE_TESTO', id_segnalazione: id }, conn);
+        for (const m of media.filter((x) => x.tipo_media === 'IMMAGINE')) {
+          await analisiRepository.accoda({ tipo_analisi: 'VERIFICA_PERTINENZA', id_segnalazione: id, id_allegato: m.id_allegato }, conn);
+        }
+      }
+      // Dopo la pertinenza (ordine della coda), così ne può leggere il segnale di autenticità.
+      if (provider.autenticita) {
+        for (const m of media.filter((x) => x.tipo_media === 'IMMAGINE')) {
+          await analisiRepository.accoda({ tipo_analisi: 'VERIFICA_AUTENTICITA', id_segnalazione: id, id_allegato: m.id_allegato }, conn);
+        }
+      }
       return { id_segnalazione: id, moderazione: moderazione?.esito ?? null, categorie_suggerite: suggerite };
     });
   } catch (err) {
@@ -395,10 +411,12 @@ export async function impostaCategorie(id, idCategorie, moderatore) {
   });
 }
 
+/** Analisi IA della segnalazione e dei suoi allegati, con l'esito complessivo suggerito al comitato. */
 export async function analisi(id) {
   const s = await segnalazioneRepository.findAccesso(id);
   if (!s) throw NON_TROVATA();
-  return analisiRepository.listBySegnalazione(id);
+  const [dati, job] = await Promise.all([analisiRepository.listBySegnalazione(id), analisiRepository.jobPerSegnalazione(id)]);
+  return { dati, riepilogo: riepilogo({ analisi: dati, job }) };
 }
 
 export async function revisionaAnalisi(idAnalisi, esito, moderatore) {

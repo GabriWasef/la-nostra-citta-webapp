@@ -9,6 +9,9 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 - Analisi dei requisiti: [`docs/analisi_requisiti_esercizio_1.md`](docs/analisi_requisiti_esercizio_1.md)
 - Analisi tecnica e stato del progetto: [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md)
 - Riferimento delle API REST: [`docs/api.md`](docs/api.md)
+- Modelli IA, costi e limiti: [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md)
+- Configurazione manuale (account, chiavi, Vercel, database): [`docs/CONFIGURAZIONE-MANUALE.md`](docs/CONFIGURAZIONE-MANUALE.md)
+- Revisione finale dell'integrazione IA: [`docs/revisione-finale.md`](docs/revisione-finale.md)
 - Modello ER completo (15 tabelle): [`database/er-completo-v2.svg`](database/er-completo-v2.svg)
 - Modello ER ridotto (moderazione e flusso IA): [`database/er-ridotto-v2.svg`](database/er-ridotto-v2.svg)
 
@@ -127,6 +130,7 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 | `npm run db:svuota` | **Elimina segnalazioni e dati collegati** mantenendo utenti, categorie, quartieri e stati (chiede conferma; `-- --azzera-log` svuota anche il registro) |
 | `npm run db:svuota:remoto` | Come `db:svuota`, sul database di `.env.production` (poi svuota Vercel Blob dal pannello) |
 | `npm run db:migrate:remoto` | Come `db:migrate`, ma sul database indicato in `.env.production` |
+| `npm run db:seed:remoto` | Come `db:seed`, ma sul database indicato in `.env.production` |
 | `npm run admin:create:remoto` | Come `admin:create`, ma sul database indicato in `.env.production` |
 | `npm run worker` | Worker IA come processo separato (`-- --once` per svuotare la coda e uscire) |
 | `npm test` | Esegue i test sul database `TEST_DB_NAME`, che viene **svuotato** |
@@ -150,7 +154,7 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 │   │   ├── routes/ → controllers/ → services/ → repositories/
 │   │   ├── validators/        schemi Zod
 │   │   ├── storage/           archivio file (locale; interfaccia pronta per S3)
-│   │   ├── ai/                provider IA (regole) e worker della coda
+│   │   ├── ai/                provider IA (regole, Mistral/Groq), regole di esito e worker della coda
 │   │   └── utils/
 │   ├── scripts/               migrate, seed, create-admin, worker
 │   └── tests/
@@ -158,7 +162,7 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 │   ├── schema/                script SQL ufficiale dell'esercizio (riferimento, invariato)
 │   ├── er-completo-v2.svg     modello ER completo aggiornato (15 tabelle)
 │   ├── er-ridotto-v2.svg      modello ER ridotto (moderazione e flusso IA)
-│   ├── migrations/            001 schema iniziale + 002–012 correzioni ed estensioni
+│   ├── migrations/            001 schema iniziale + 002–013 correzioni ed estensioni
 │   ├── seeds/                 dati iniziali
 │   └── docker-init/
 ├── docs/                      requisiti, analisi tecnica, API
@@ -167,7 +171,7 @@ La webapp è su <http://localhost:3000>. Il worker delle analisi IA gira dentro 
 
 ## Modelli ER
 
-I due diagrammi ER in `database/` rappresentano lo stato attuale dello schema dopo le migrazioni **001–012**, incluse le parti su moderazione, analisi IA e coda `job_elaborazione`.
+I due diagrammi ER in `database/` rappresentano lo schema dopo le migrazioni **001–012**, incluse le parti su moderazione, analisi IA e coda `job_elaborazione`. Non mostrano ancora le colonne aggiunte dalla 013 (`allegato.hash_percettivo`, `allegato.data_scatto_exif`, `job_elaborazione.disponibile_dal`) né il nuovo tipo di analisi `VERIFICA_AUTENTICITA`.
 
 - [`database/er-completo-v2.svg`](database/er-completo-v2.svg): modello completo con tutte le 15 tabelle.
 - [`database/er-ridotto-v2.svg`](database/er-ridotto-v2.svg): modello ridotto, focalizzato su moderazione e flusso IA.
@@ -187,9 +191,10 @@ Lo script ufficiale `database/schema/database_la_nostra_citta_mysql.sql` resta i
 | 007 | Indici composti e `FULLTEXT` per la ricerca |
 | 008 | Coerenza tipo media/MIME, hash dei file, origine delle coordinate |
 | 009 | Analisi video, esito e revisione delle analisi IA, coda `job_elaborazione` |
-| 010 | Limiti di richieste e tracciamento antiflood |
-| 011 | Import quartieri di Milano aggiornati |
-| 012 | Nascondimento segnalazioni e relativi filtri di visibilità |
+| 010 | Contatori dei limiti di frequenza condivisi tra istanze (`limite_richieste`) |
+| 011 | Quartieri di Milano |
+| 012 | Segnalazioni nascoste dal comitato |
+| 013 | Analisi `VERIFICA_AUTENTICITA`, hash percettivo e data di scatto degli allegati, job rimandabili (`disponibile_dal`) |
 
 Il motivo di ogni modifica è spiegato nel §3 di [`docs/analisi-tecnica.md`](docs/analisi-tecnica.md).
 
@@ -234,11 +239,57 @@ Salvare anche la cartella `uploads/` (oppure il bucket, se si usa un object stor
 
 **Il login riesce ma la sessione non resta aperta:** con `NODE_ENV=production` il cookie è `Secure` e viaggia solo su HTTPS. In locale usa `NODE_ENV=development`; in produzione metti l'app dietro un reverse proxy HTTPS con `TRUST_PROXY=true`.
 
+## Modelli IA, costi e limiti
+
+Il sito usa l'intelligenza artificiale per aiutare il comitato a esaminare le segnalazioni: segnala testi offensivi,
+propone le categorie e controlla che le foto mostrino il problema descritto. L'IA non decide nulla. Ogni analisi
+produce un esito suggerito (OK, da revisionare, bloccato), e sono sempre i moderatori a pubblicare, rifiutare o
+nascondere una segnalazione.
+
+**Due modalità.** Con `AI_PROVIDER=regole`, il valore predefinito, tutte le analisi sono controlli a regole: parole
+vietate, parole chiave, qualità e metadati delle foto. Non c'è nessun servizio esterno e nessun costo. Con
+`AI_PROVIDER=mistral` si aggiunge un modello linguistico che legge testo e foto. La richiesta di invio usa comunque
+solo le regole, così il sito funziona anche se il fornitore è irraggiungibile. Le analisi del modello avvengono
+subito dopo, in una coda.
+
+**Perché Mistral.** Un solo modello (`mistral-small-latest`, oggi Mistral Small 4) legge testo e immagini nella stessa
+chiamata e risponde in un formato controllabile. L'azienda ha sede nell'Unione europea e c'è una modalità gratuita
+per provare. Groq (`qwen/qwen3.8-27b`) è un fornitore di riserva facoltativo, più veloce, ma tratta i dati negli Stati
+Uniti: per questo è disattivato per default. Google Gemini è stato escluso perché nell'Unione europea la sua quota
+gratuita non è utilizzabile. Un modello installato su server propri richiederebbe una GPU sempre accesa, con costi e
+manutenzione sproporzionati.
+
+**Quanto costa.** Una segnalazione con una foto richiede due chiamate al modello, circa 4.500 token in tutto. Ai
+prezzi di ottobre 2026 sono circa 1 dollaro ogni 1.000 segnalazioni con Mistral e circa 4,50 con Groq. Il costo
+fisso principale è l'hosting. Il piano gratuito di Vercel (Hobby) è riservato all'uso personale e non commerciale:
+per un comitato va valutato il piano Pro, 20 dollari al mese per membro. Si aggiungono il database MySQL e lo spazio
+per le foto.
+
+**Quanto si può fare.** Il progetto si limita da solo: per default 20 richieste al minuto e 500 al giorno per
+fornitore, cioè circa 10 segnalazioni al minuto e 250 al giorno con una foto ciascuna. Quando il limite è raggiunto
+nessuna segnalazione si perde: le analisi restano in coda e ripartono nel minuto successivo o dopo la mezzanotte UTC.
+Lo stesso vale se il fornitore risponde "troppe richieste" o non risponde: dopo tre tentativi l'analisi compare al
+comitato come "da revisionare".
+
+| In breve | Valore |
+|---|---|
+| Modello principale | Mistral `mistral-small-latest` (variabile `MISTRAL_MODEL`) |
+| Riserva facoltativa | Groq `qwen/qwen3.8-27b` (`AI_FALLBACK_PROVIDER=groq`, `GROQ_MODEL`) |
+| Costo IA stimato | circa 1 USD ogni 1.000 segnalazioni con una foto (Mistral) |
+| Limiti del progetto | `AI_MAX_RPM=20`, `AI_MAX_RPD=500` per fornitore; `AI_JOB_PER_RUN=5` analisi per esecuzione |
+| Dati inviati al modello | solo testo, nomi delle categorie e foto ridotta senza metadati; mai nome, e-mail o id dell'autore |
+| Ultima verifica dei valori | 14/10/2026 (da ripetere prima di ogni rilascio e ogni 3 mesi) |
+
+I prezzi, i limiti di ciascun fornitore (anche quelli non pubblicati), il calcolo dei token, gli scenari di costo, le
+query per controllare l'uso e la procedura per cambiare modello sono in [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md).
+I passaggi da fare a mano (account, chiavi, Vercel, database, adempimenti privacy) sono in
+[`docs/CONFIGURAZIONE-MANUALE.md`](docs/CONFIGURAZIONE-MANUALE.md).
+
 ## Limiti noti e sviluppi futuri
 
 - **E-mail di recupero password:** l'invio non è configurato; in sviluppo il link compare nel log del server. Serve un server SMTP (es. con nodemailer).
 - **Video:** vengono verificati tipo e dimensione, ma non ricodificati. I metadati dei video, che possono includere la posizione, non vengono rimossi: serve ffmpeg.
-- **IA:** i provider inclusi sono a regole (elenchi di parole, parole chiave, controlli tecnici sulle immagini). Servono a dimostrare il flusso. Si sostituiscono con modelli reali in `server/src/ai/` senza toccare API e database.
+- **IA:** con `AI_PROVIDER=regole` (predefinito) le analisi sono a regole (parole, parole chiave, controlli tecnici e di autenticità delle immagini). Con `AI_PROVIDER=mistral` il worker usa anche un modello linguistico (Mistral, fallback facoltativo Groq) per moderazione, categorie e pertinenza delle immagini; la richiesta usa sempre e solo le regole. I risultati sono suggerimenti per il comitato. I video non sono analizzati. Dettagli, limiti dei piani gratuiti e privacy in [`docs/AI-PROVIDERS.md`](docs/AI-PROVIDERS.md).
 - **Antivirus:** il punto di aggancio (`scansionaFile`) è predisposto ma non collegato. L'archivio degli allegati ha due implementazioni (disco locale e Vercel Blob privato) con la stessa interfaccia `storage`; un archivio S3 si aggiunge allo stesso modo.
 - **Vercel:** il comportamento sul servizio reale (Blob, database remoto, cron) non è verificabile dai test automatici, che usano simulatori: dopo il primo deploy usa **Amministrazione → Diagnostica**.
 - **App mobile o desktop:** non fa parte di questa fase. L'API REST è indipendente dal frontend; per un client nativo basterà aggiungere un'autenticazione a token in `middlewares/auth.js`.

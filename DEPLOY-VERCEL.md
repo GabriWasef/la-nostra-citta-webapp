@@ -2,6 +2,8 @@
 
 Guida passo per passo. Tempo stimato: 30–40 minuti la prima volta.
 
+La lista completa delle operazioni manuali (account, chiavi, accordi privacy, dominio, verifiche) è in [`docs/CONFIGURAZIONE-MANUALE.md`](docs/CONFIGURAZIONE-MANUALE.md).
+
 ## Come funziona su Vercel
 
 | Parte | Dove sta |
@@ -10,7 +12,7 @@ Guida passo per passo. Tempo stimato: 30–40 minuti la prima volta.
 | API REST (`/api/v1/...`) | Una sola funzione serverless (`api/index.js`) che esegue la stessa app Express usata in locale |
 | Database | **MySQL 8 esterno** (Vercel non offre MySQL) |
 | Foto e video | **Vercel Blob in modalità privata**; il browser li carica direttamente (una richiesta a una funzione non può superare 4,5 MB) e li legge tramite link firmati a scadenza breve |
-| Analisi IA a regole | Partono subito dopo ogni segnalazione; una manutenzione giornaliera (cron) recupera quelle rimaste indietro e pulisce sessioni e file temporanei scaduti |
+| Analisi IA (regole e, se attivo, modello linguistico) | Partono subito dopo ogni segnalazione, entro i 60 s della funzione; una manutenzione giornaliera (cron) recupera quelle rimaste indietro e pulisce sessioni e file temporanei scaduti |
 | Limiti di richieste (anti-abuso) | Salvati in MySQL (la memoria di una funzione non è condivisa) |
 
 ## 1. Un database MySQL 8 raggiungibile da internet
@@ -46,16 +48,17 @@ Dal tuo PC, con `.env.production` compilato (DB_HOST, DB_USER, DB_PASSWORD, DB_N
 ```bash
 npm ci
 npm run db:migrate:remoto
+npm run db:seed:remoto
 npm run admin:create:remoto
 ```
 
-Il primo comando applica le migrazioni (lo script SQL ufficiale più le correzioni numerate). Il secondo chiede e-mail, nome, cognome e password dell'amministratore.
+Il primo comando applica le migrazioni (lo script SQL ufficiale più le correzioni numerate). Il secondo carica le categorie e i quartieri iniziali (si può ripetere: non crea doppioni). Il terzo chiede e-mail, nome, cognome e password dell'amministratore.
 Se `db:migrate:remoto` segnala un errore sui trigger, il database non è adatto (vedi punto 1).
 
 ## 4. Creare il progetto su Vercel
 
 1. Su <https://vercel.com> → **Add New… → Project** → importa il repository GitHub `la-nostra-citta-webapp`.
-2. Branch di produzione: `main`. **Non cambiare** Framework Preset, Build Command, Output Directory: sono già in `vercel.json` (Framework "Other", `npm run build:vercel`, output `public`).
+2. Branch di produzione: `main`. **Non cambiare** Framework Preset, Build Command, Output Directory: sono già in `vercel.json` (Framework "Other", `npm run build:vercel`, output `public`). Le funzioni girano per default nella regione `iad1` (Stati Uniti): per trattare i dati in Europa scegli una regione europea in **Settings → Functions**, vicina al database.
 3. Prima di premere Deploy, apri **Environment Variables** e inserisci (ambiente *Production*; per le anteprime vedi nota in fondo):
 
 | Variabile | Valore |
@@ -69,6 +72,22 @@ Se `db:migrate:remoto` segnala un errore sui trigger, il database non è adatto 
 | `CRON_SECRET` | il secondo segreto generato (Vercel lo invia da solo al cron) |
 | `AI_WORKER_INTERVAL_MS` | `0` |
 | `GEOCODING_EMAIL` | (facoltativa) la tua e-mail di contatto per Nominatim |
+| `AI_PROVIDER` | `regole` (predefinito) oppure `mistral` per il modello linguistico (vedi sotto) |
+
+   **Modello linguistico (facoltativo).** Con `AI_PROVIDER=mistral` aggiungi (solo qui, mai in `vercel.json` o nel repository):
+
+   | Variabile | Valore |
+   | --- | --- |
+   | `MISTRAL_API_KEY` | la chiave creata nella console di Mistral (obbligatoria) |
+   | `MISTRAL_MODEL` | `mistral-small-latest` o una versione datata |
+   | `AI_FALLBACK_PROVIDER` | `regole` (predefinito) oppure `groq`: Groq tratta i dati negli Stati Uniti |
+   | `GROQ_API_KEY`, `GROQ_MODEL` | solo con il fallback `groq` (`qwen/qwen3.8-27b`) |
+   | `AI_TIMEOUT_MS`, `AI_MAX_RETRIES` | `15000`, `2` |
+   | `AI_MAX_RPM`, `AI_MAX_RPD` | `20`, `500`; per Groq conviene `GROQ_MAX_RPM=2` (vedi `docs/AI-PROVIDERS.md`) |
+   | `AI_JOB_PER_RUN` | `5` (analisi per invocazione: la funzione dura al massimo 60 s) |
+   | `EXIF_MAX_DISTANCE_M` | `100` |
+
+   Prima di usare dati reali disattiva nella console di Mistral (**Admin panel → Privacy**) l'uso delle chiamate API per l'addestramento. Le analisi partono dopo ogni invio; quelle rimaste indietro le riprende il cron giornaliero.
 
    `APP_ORIGIN` si ricava da solo dall'indirizzo del progetto (`VERCEL_PROJECT_PRODUCTION_URL`). Se usi un **dominio personalizzato**, aggiungi `APP_ORIGIN=https://tuo-dominio.it`.
 4. Premi **Deploy**. Il primo deploy non è ancora completo: manca lo store dei file.
@@ -98,7 +117,7 @@ Se un controllo fallisce, il messaggio indica cosa correggere. Dopo ogni modific
 
 - Ogni push su `main` ripubblica automaticamente il sito.
 - Quando una versione aggiunge dati o tabelle (es. l'elenco dei quartieri di Milano e dintorni, migrazione `011`), esegui `git pull` e poi `npm run db:migrate:remoto` dal tuo PC.
-- Se una versione aggiunge migrazioni (cartella `database/migrations/`), eseguile **prima** di pubblicare con `npm run db:migrate:remoto`: sono pensate per essere compatibili con la versione precedente.
+- Se una versione aggiunge migrazioni (cartella `database/migrations/`), eseguile **prima** di pubblicare con `npm run db:migrate:remoto`: sono pensate per essere compatibili con la versione precedente. La `013` (IA reale) è necessaria anche con `AI_PROVIDER=regole`.
 
 ## Limiti e costi da conoscere
 
@@ -106,7 +125,7 @@ Se un controllo fallisce, il messaggio indica cosa correggere. Dopo ogni modific
 - **Blob**: ha quote di spazio e di trasferimento incluse; oltre si paga. I limiti dell'app (5 file, 10 MB per immagine, 50 MB per video) sono modificabili con `MAX_FILES`, `MAX_IMAGE_MB`, `MAX_VIDEO_MB`.
 - **Avvio a freddo**: la prima richiesta dopo un periodo di inattività può richiedere qualche secondo (apertura della connessione al database).
 - **Nominatim** (ricerca indirizzi) ha un limite di 1 richiesta al secondo: il server la rispetta e usa una cache di 24 ore. Per volumi alti usa un servizio di geocodifica a pagamento o un'istanza tua (`GEOCODING_URL`).
-- Le analisi automatiche sono filtri a regole; non c'è un servizio IA esterno.
+- **Analisi automatiche**: con `AI_PROVIDER=regole` sono filtri a regole, senza servizi esterni. Con `AI_PROVIDER=mistral` valgono i limiti del piano del fornitore (quelli gratuiti sono bassi e non tutti pubblicati): oltre i limiti le analisi si rimandano, non si perdono. Consumi e capacità in `docs/AI-PROVIDERS.md`.
 
 ## Problemi frequenti
 

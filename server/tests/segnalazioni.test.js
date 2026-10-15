@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   accedi, anonimo, avvia, cambiaStato, chiudi, creaUtente, fileSalvati, inviaSegnalazione, jpeg, pool,
 } from './helpers.js';
-import { elaboraTutti } from '../src/ai/worker.js';
+import { svuotaCoda } from '../src/ai/worker.js';
 
 let autore, altro, moderatore, agAutore, agAltro, agMod;
 
@@ -352,7 +352,7 @@ describe('Ciclo di vita e moderazione (RF10)', () => {
   test('analisi IA: worker asincrono e revisione del moderatore (RF13)', async () => {
     const res = await inviaSegnalazione(agAutore, {}, [{ buffer: await jpeg({ larghezza: 200, altezza: 150 }), nome: 'piccola.jpg' }]);
     const id = res.body.segnalazione.id_segnalazione;
-    assert.ok((await elaboraTutti()) >= 1);
+    assert.ok((await svuotaCoda()) >= 1);
     const { body } = await agMod.get(`/api/v1/moderazione/segnalazioni/${id}/analisi`);
     const tipi = body.dati.map((a) => a.tipo_analisi);
     for (const t of ['MODERAZIONE_TESTO', 'CLASSIFICAZIONE_TESTO', 'ESTRAZIONE_EXIF', 'ANALISI_IMMAGINE']) assert.ok(tipi.includes(t), t);

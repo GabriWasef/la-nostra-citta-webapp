@@ -34,6 +34,18 @@ describe('vercel.json', () => {
     assert.ok(config.functions['api/index.js'].maxDuration >= 30, 'tempo sufficiente per elaborare i video');
   });
 
+  test('il worker IA usa la stessa durata massima della funzione (revisione finale)', async () => {
+    const { DURATA_INVOCAZIONE_MS } = await import('../src/ai/worker.js');
+    assert.equal(DURATA_INVOCAZIONE_MS, config.functions['api/index.js'].maxDuration * 1000);
+  });
+
+  test('database remoto: esiste db:seed:remoto e la guida lo esegue tra migrazioni e amministratore (revisione finale)', async () => {
+    assert.equal(pkg.scripts['db:seed:remoto'], 'node --env-file=.env.production server/scripts/seed.js');
+    const guida = await fs.readFile(path.join(ROOT_DIR, 'DEPLOY-VERCEL.md'), 'utf8');
+    const [migra, seed, admin] = ['npm run db:migrate:remoto', 'npm run db:seed:remoto', 'npm run admin:create:remoto'].map((c) => guida.indexOf(c));
+    assert.ok(migra >= 0 && seed > migra && admin > seed, 'ordine: migrazioni, dati iniziali, amministratore');
+  });
+
   test('la funzione include tutte le dipendenze (il tracciamento automatico perde i file scelti dalla condizione "node" di alcuni pacchetti, es. strtok3)', () => {
     assert.equal(config.functions['api/index.js'].includeFiles, 'node_modules/**');
   });

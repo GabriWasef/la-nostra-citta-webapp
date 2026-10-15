@@ -116,14 +116,14 @@ Ricerca di indirizzi a Milano tramite Nominatim di OpenStreetMap, chiamato dal s
 
 | Metodo e percorso | Corpo / Query |
 |---|---|
-| `GET /moderazione/segnalazioni` | `stato`, `quartiere`, `q`, `ordina`, `pagina`, `perPagina`; qualsiasi visibilità, con `da_revisionare_ia` |
+| `GET /moderazione/segnalazioni` | `stato`, `quartiere`, `q`, `ordina`, `pagina`, `perPagina`; qualsiasi visibilità, con `da_revisionare_ia` (vero se un'analisi del testo o degli allegati è `DA_REVISIONARE` o `BLOCCATO` e non ancora revisionata) |
 | `PATCH /moderazione/segnalazioni/:id/stato` | `codice`, `motivazione` (obbligatoria per `RIFIUTATA`) |
 | `POST /moderazione/segnalazioni/:id/nascondi` | `motivazione` (5–500). Reversibile: la segnalazione sparisce da elenchi, classifica, mappa e statistiche pubblici e non si può sostenere; la vedono autore e comitato (`nascosta`, `motivo_nascondimento`). 409 se già nascosta |
 | `POST /moderazione/segnalazioni/:id/mostra` | Ripristina una segnalazione nascosta |
 | `DELETE /moderazione/segnalazioni/:id` | Corpo `{ motivazione }` (5–500). Eliminazione definitiva con allegati, sostegni e cronologia; registrata nel log. 204 |
 | `PUT /moderazione/segnalazioni/:id/categorie` | `categorie: [id, …]` (1–5) |
-| `GET /moderazione/segnalazioni/:id/analisi` | Analisi IA del testo e degli allegati |
-| `PATCH /moderazione/analisi/:id` | `esito_revisione`: `CONFERMATA` \| `CORRETTA` \| `RESPINTA` |
+| `GET /moderazione/segnalazioni/:id/analisi` | Analisi IA del testo e degli allegati (`dati`) e `riepilogo`: esito complessivo suggerito (`OK` \| `DA_REVISIONARE` \| `BLOCCATO` \| `null`), `motivi`, `da_revisionare`, `analisi_in_corso`, `analisi_non_riuscite`. È un suggerimento: non cambia lo stato né la visibilità |
+| `PATCH /moderazione/analisi/:id` | `esito_revisione`: `CONFERMATA` \| `CORRETTA` \| `RESPINTA`. Risponde come la `GET` delle analisi (`dati` e `riepilogo`) |
 | `DELETE /moderazione/allegati/:id` | Non è ammesso se è l'unico allegato di una segnalazione pubblicata |
 
 Transizioni di stato ammesse:

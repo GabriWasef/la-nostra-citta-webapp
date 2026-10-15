@@ -1,9 +1,9 @@
 // Worker IA come processo separato. Uso: npm run worker [-- --once]
-import { avviaWorker, elaboraTutti } from '../src/ai/worker.js';
+import { avviaWorker, svuotaCoda } from '../src/ai/worker.js';
 import { closePool } from '../src/config/db.js';
 
 if (process.argv.includes('--once')) {
-  const n = await elaboraTutti();
+  const n = await svuotaCoda();
   console.log(`${n} job elaborati.`);
   await closePool();
 } else {

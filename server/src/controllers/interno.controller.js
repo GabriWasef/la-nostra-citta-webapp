@@ -14,5 +14,5 @@ export async function manutenzione(req, res) {
   if (!crypto.timingSafeEqual(atteso, ricevuto)) {
     throw new AppError(401, 'NON_AUTORIZZATO', 'Chiave di manutenzione non valida.');
   }
-  res.json(await eseguiManutenzione());
+  res.json(await eseguiManutenzione({ inizio: req.inizioRichiesta }));
 }

@@ -1,6 +1,7 @@
 # Piano: integrazione IA reale
 
-Stato: **bozza da confermare**. Nessun codice è stato scritto: le scelte del §4 attendono una risposta.
+Stato: **scelte confermate** (tutte le opzioni consigliate del §4, S1–S7, e le proposte delle domande aperte).
+Avanzamento: fase 1 ✅ · fase 2 ✅ · fase 3 ✅ · fase 4 ✅ · fase 5 ✅ · fase 6 ✅ · fase 7 ✅.
 Data dell'analisi: 12/10/2026, sul branch `main` (commit `5506b09`).
 
 ## 1. Fasi
@@ -93,8 +94,8 @@ controller e route, `vercel.json` (né frequenza del cron né chiavi).
 
 ## 5. Differenze rispetto al prompt di lavoro
 
-1. **Modello Groq.** `meta-llama/llama-4-scout-17b-16e-instruct` risulta nella pagina delle deprecazioni di Groq con spegnimento il 17/07/2026 per i piani free e developer. Nella documentazione "Images and Vision" compare `qwen/qwen3.8-27b` (massimo 3 immagini per richiesta). Va verificato in fase 3 sull'endpoint `/models`; nel frattempo `GROQ_MODEL` non avrà un valore predefinito "fidato".
-2. **Modello Mistral.** `mistral-small-latest` ora punta, secondo fonti di terze parti, a Mistral Small 4 (`mistral-small-2603`, con input immagine). Propongo di configurare una versione datata in `MISTRAL_MODEL` per avere risultati riproducibili; da confermare sulla documentazione ufficiale.
+1. **Modello Groq.** `meta-llama/llama-4-scout-17b-16e-instruct` risulta nella pagina delle deprecazioni di Groq con spegnimento il 17/07/2026 per i piani free e developer. *Verificato il 14/10/2026:* la documentazione ufficiale "Images and Vision" di Groq elenca come unico modello con visione `qwen/qwen3.8-27b` (JSON mode supportato anche con immagini, massimo 3 immagini per richiesta): è il valore predefinito di `GROQ_MODEL`.
+2. **Modello Mistral.** *Verificato il 14/10/2026:* la documentazione ufficiale sulla visione usa l'alias `mistral-small-latest`; `mistral-small-2506` (Small 3.2) è deprecato e ritirato dal 31/07/2026, sostituito da Mistral Small 4, il cui nome datato non è ancora riportato nella pagina dei modelli. Valore predefinito di `MISTRAL_MODEL`: `mistral-small-latest`; in produzione conviene fissare la versione datata appena documentata.
 3. **Durata della funzione.** Con 15 s di timeout, 2 retry e il fallback, una sola chiamata può arrivare a ~90 s, oltre i 60 s di `maxDuration`. Ogni chiamata riceverà una scadenza (tempo residuo dell'invocazione − 10 s): se non basta per un altro tentativo, il job viene rimandato invece di fallire.
 4. **Job bloccati in `IN_CORSO`.** Oggi nessuno li riprende (criterio di accettazione non soddisfatto dal codice attuale): la manutenzione li rimetterà in coda dopo 10 minuti, usando `data_aggiornamento`.
 5. **`elaboraTutti()` non ha limite.** È usata da `avviaAnalisiDopoRisposta`, dal worker locale e dalla manutenzione: il limite `AI_JOB_PER_RUN` e il controllo del tempo residuo valgono per ogni invocazione; il worker locale riprende al ciclo successivo. La manutenzione notturna elaborerà anch'essa al massimo `AI_JOB_PER_RUN` job, il resto alla prossima segnalazione inserita.
@@ -104,6 +105,10 @@ controller e route, `vercel.json` (né frequenza del cron né chiavi).
 9. **Rate limit e `rateLimitStore.js`.** La classe `MySqlRateLimitStore` è riusabile (prefisso `ai:mistral:min`, finestra 60 s); per il limite giornaliero uso una chiave con la data (`ai:mistral:day:2026-10-12`) così la finestra coincide con il giorno di calendario UTC.
 10. **Privacy.** Oltre a Groq (extra-UE), il piano gratuito di Mistral potrebbe consentire l'uso dei dati per l'addestramento salvo disattivazione nella console: da verificare e indicare in `AI-PROVIDERS.md` e nell'informativa. Il testo della segnalazione può contenere dati personali scritti dall'autore: non è filtrabile in modo affidabile, va dichiarato.
 11. **Ambiente dei test.** I test richiedono MySQL 8; nel container di sviluppo MySQL non è installato. Userò Docker (`docker-compose.yml` del progetto) se disponibile, altrimenti lo segnalerò per ogni fase.
+
+12. **Soglia del pHash.** Con la soglia richiesta (distanza di Hamming ≤ 5) una foto ridimensionata e ricompressa in modo realistico (lato 560 px, qualità 80) resta a 0–2 bit; con ricompressioni molto forti (qualità 50–60) si arriva a 6 bit e il riuso sfugge. Tra foto diverse la distanza minima osservata è 14–22 bit. Alzare la soglia a 8 resterebbe lontano dai falsi positivi: da decidere.
+13. **Immagini uniformi.** Un'immagine quasi priva di contrasto (cielo, muro, foto nera) non riceve il pHash: il suo hash sarebbe rumore e coinciderebbe per caso con altre immagini uniformi. Il confronto risulta "non verificabile".
+14. **Data di scatto.** `data_scatto_exif` è salvata all'upload e mostrata nella verifica (giorni prima dell'invio), ma non cambia l'esito: una foto vecchia può documentare un problema che dura da tempo.
 
 ## 6. Domande aperte
 

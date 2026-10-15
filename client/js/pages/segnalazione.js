@@ -152,9 +152,144 @@ function boxStorico(storico) {
 
 // ---------- Moderazione ----------
 
+const TIPI_ANALISI = {
+  MODERAZIONE_TESTO: 'Moderazione del testo',
+  CLASSIFICAZIONE_TESTO: 'Categorie suggerite',
+  ESTRAZIONE_EXIF: 'Metadati della foto (EXIF)',
+  ANALISI_IMMAGINE: 'Controllo tecnico dell’immagine',
+  VERIFICA_PERTINENZA: 'Pertinenza dell’immagine',
+  VERIFICA_AUTENTICITA: 'Verifica di autenticità',
+  ANALISI_VIDEO: 'Analisi del video',
+};
+
+const MOTIVI = {
+  LINGUAGGIO_VOLGARE: 'linguaggio volgare',
+  INSULTI: 'insulti',
+  LINGUAGGIO_ODIO: 'linguaggio d’odio',
+  MINACCE: 'minacce',
+  SPAM: 'possibile spam',
+  TESTO_GRAVE: 'contenuto grave nel testo',
+  TESTO_NON_ACCETTABILE: 'testo non accettabile',
+  TESTO_DA_VERIFICARE: 'testo da verificare',
+  ESITO_SUGGERITO_DAL_MODELLO: 'il modello suggerisce una verifica',
+  CATEGORIE_DA_CONFERMARE: 'categorie da confermare',
+  NESSUNA_CATEGORIA_SUGGERITA: 'nessuna categoria suggerita',
+  CATEGORIA_DIVERSA_DAL_SUGGERIMENTO: 'categoria diversa da quella suggerita',
+  IMMAGINE_INAPPROPRIATA: 'immagine inappropriata',
+  IMMAGINE_NON_CORRISPONDE_AL_TESTO: 'l’immagine non corrisponde al testo',
+  IMMAGINE_NON_CORRISPONDE_ALLA_CATEGORIA: 'l’immagine non corrisponde alla categoria',
+  PERTINENZA_NON_VALUTABILE: 'pertinenza non valutabile',
+  CONFIDENZA_BASSA: 'confidenza bassa',
+  SEGNALE_AUTENTICITA: 'possibile immagine generata o ritoccata',
+  SEGNALE_MODELLO: 'il modello sospetta un’immagine generata o ritoccata',
+  EXIF_POSIZIONE_LONTANA: 'foto scattata lontano dal luogo indicato',
+  FOTO_GIA_USATA: 'foto già usata in un’altra segnalazione',
+  PROVIDER_NON_DISPONIBILE: 'servizio di analisi non disponibile',
+  ANALISI_IN_CORSO: 'analisi ancora in corso',
+  RISOLUZIONE_BASSA: 'risoluzione bassa',
+  IMMAGINE_TROPPO_SCURA: 'immagine troppo scura',
+  IMMAGINE_SOVRAESPOSTA: 'immagine sovraesposta',
+};
+const motivo = (m) => MOTIVI[m] ?? String(m).toLowerCase().replaceAll('_', ' ');
+const ETICHETTE_ESITO = { OK: 'OK', DA_REVISIONARE: 'Da revisionare', BLOCCATO: 'Bloccato' };
+const badgeEsito = (esito) => h('span', { class: `badge badge-esito esito-${esito.toLowerCase()}` }, ETICHETTE_ESITO[esito] ?? esito);
+const ETICHETTE_REVISIONE = { CONFERMATA: 'Conferma', CORRETTA: 'Correggi', RESPINTA: 'Respingi' };
+const SPIEGAZIONE_REVISIONE = {
+  CONFERMATA: 'Il risultato è corretto',
+  CORRETTA: 'Il risultato è in parte sbagliato e l’hai corretto (per esempio cambiando le categorie)',
+  RESPINTA: 'Il risultato è sbagliato',
+};
+
+/** Esito complessivo suggerito: lo decide sempre il comitato. */
+function riquadroRiepilogo(r) {
+  if (!r?.esito) return null;
+  return h(
+    'div',
+    { class: `riepilogo-ia esito-${r.esito.toLowerCase()}` },
+    h('p', {}, h('strong', {}, 'Esito suggerito: '), badgeEsito(r.esito)),
+    r.motivi.length ? h('p', { class: 'small' }, `Motivi: ${r.motivi.map(motivo).join('; ')}.`) : null,
+    h(
+      'p',
+      { class: 'small muted' },
+      [
+        r.da_revisionare ? `${r.da_revisionare} analisi da revisionare` : 'Nessuna analisi da revisionare',
+        r.analisi_in_corso ? `${r.analisi_in_corso} in corso` : null,
+        r.analisi_non_riuscite ? `${r.analisi_non_riuscite} non riuscite` : null,
+      ].filter(Boolean).join(' · ') + '. È un suggerimento: la decisione spetta al comitato.',
+    ),
+  );
+}
+
+/** Dettagli leggibili di un'analisi, oltre al JSON completo. */
+function dettagliAnalisi(a) {
+  const r = a.risultato ?? {};
+  const righe = [];
+  if (r.errore === 'PROVIDER_NON_DISPONIBILE') righe.push('Il servizio di analisi non ha risposto dopo più tentativi.');
+  if (r.spiegazione) righe.push(r.spiegazione);
+  if (a.tipo_analisi === 'VERIFICA_PERTINENZA' && r.immagine?.osservato) righe.push(`Nell’immagine: ${r.immagine.osservato}`);
+  if (a.tipo_analisi === 'VERIFICA_PERTINENZA' && r.immagine?.categoria_suggerita) righe.push(`Categoria che l’immagine mostra meglio: ${r.immagine.categoria_suggerita}`);
+  if (a.tipo_analisi === 'CLASSIFICAZIONE_TESTO' && r.suggerite?.length) {
+    righe.push(`Suggerite: ${r.suggerite.map((c) => `${c.nome} (${Math.round(c.affidabilita * 100)}%)`).join(', ')}`);
+  }
+  if (a.tipo_analisi === 'VERIFICA_AUTENTICITA') {
+    const e = r.exif ?? {};
+    righe.push(
+      e.stato === 'NON_VERIFICABILE' ? `Posizione: non verificabile. ${e.nota ?? ''}`
+        : `Posizione della foto a ${e.distanza_m} m da quella indicata (soglia ${e.soglia_m} m).`,
+    );
+    if (e.data_scatto) righe.push(`Scattata il ${formatDataOra(e.data_scatto)}${e.giorni_prima_dell_invio > 0 ? `, ${e.giorni_prima_dell_invio} giorni prima dell’invio` : ''}.`);
+    if (r.duplicati?.stato === 'TROVATI') {
+      righe.push(h('span', {}, 'Foto già usata nella segnalazione ', h('a', { href: `/segnalazione?id=${r.duplicati.id_segnalazione_precedente}` }, `n. ${r.duplicati.id_segnalazione_precedente}`), '.'));
+    }
+    if (r.segnale_modello?.stato === 'SOSPETTO') righe.push(`Il modello sospetta un’immagine generata o ritoccata (confidenza ${Math.round(r.segnale_modello.confidenza * 100)}%): è solo un indizio.`);
+  }
+  return righe.map((t) => h('div', { class: 'small' }, t));
+}
+
+function schedaAnalisi(a, perAllegato) {
+  const r = a.risultato ?? {};
+  const motivi = r.motivi_esito ?? r.motivi ?? r.problemi ?? [];
+  const riferimento = a.id_allegato ? ` · ${perAllegato.get(a.id_allegato) ?? `allegato n. ${a.id_allegato}`}` : '';
+  return h(
+    'li',
+    {},
+    h('strong', {}, TIPI_ANALISI[a.tipo_analisi] ?? a.tipo_analisi),
+    ' ',
+    a.esito ? badgeEsito(a.esito) : null,
+    h('div', { class: 'small muted' }, `${a.modello} · ${formatDataOra(a.data_analisi)}${a.punteggio !== null ? ` · punteggio ${a.punteggio}` : ''}${riferimento}`),
+    motivi.length && a.esito !== 'OK' ? h('div', { class: 'small' }, `Motivi: ${motivi.map(motivo).join('; ')}.`) : null,
+    ...dettagliAnalisi(a),
+    h('details', {}, h('summary', { class: 'small' }, 'Risultato completo'), h('pre', {}, JSON.stringify(r, null, 2))),
+    a.esito_revisione
+      ? h('div', { class: 'small' }, `Revisione: ${a.esito_revisione.toLowerCase()}${a.revisore ? ` (${a.revisore})` : ''}`)
+      : h(
+        'div',
+        { class: 'form-actions' },
+        ['CONFERMATA', 'CORRETTA', 'RESPINTA'].map((esito) =>
+          h('button', {
+            type: 'button',
+            class: 'btn btn-small',
+            title: SPIEGAZIONE_REVISIONE[esito],
+            on: {
+              click: async () => {
+                try {
+                  await api.patch(`/moderazione/analisi/${a.id_analisi}`, { esito_revisione: esito });
+                  sessionStorage.setItem('lnc-messaggio', 'Revisione registrata.');
+                  location.reload();
+                } catch (err) {
+                  messaggio('error', err.message);
+                }
+              },
+            },
+          }, ETICHETTE_REVISIONE[esito]),
+        ),
+      ),
+  );
+}
+
 async function pannelloModerazione() {
   const s = segnalazione;
-  const [stati, categorie, { dati: analisi }] = await Promise.all([
+  const [stati, categorie, { dati: analisi, riepilogo }] = await Promise.all([
     catalogo.stati(),
     catalogo.categorie(),
     api.get(`/moderazione/segnalazioni/${s.id_segnalazione}/analisi`),
@@ -282,7 +417,7 @@ async function pannelloModerazione() {
         'li',
         {},
         h('strong', {}, a.nome_file),
-        h('div', { class: 'small muted' }, `${a.tipo_media === 'VIDEO' ? 'Video' : 'Immagine'} · ${(a.dimensione_bytes / 1024).toFixed(0)} KB`, a.latitudine_exif !== null ? ` · GPS EXIF ${a.latitudine_exif}, ${a.longitudine_exif}` : ' · nessun GPS EXIF'),
+        h('div', { class: 'small muted' }, `${a.tipo_media === 'VIDEO' ? 'Video' : 'Immagine'} · ${(a.dimensione_bytes / 1024).toFixed(0)} KB`, a.latitudine_exif !== null ? ` · GPS EXIF ${a.latitudine_exif}, ${a.longitudine_exif}` : ' · nessun GPS EXIF', a.data_scatto_exif ? ` · scattata il ${formatDataOra(a.data_scatto_exif)}` : ''),
         h('div', { class: 'form-actions' },
           h('a', { class: 'btn btn-small', href: urlAllegato(a.id_allegato), target: '_blank', rel: 'noopener' }, 'Apri'),
           h('button', {
@@ -305,48 +440,10 @@ async function pannelloModerazione() {
     ),
   );
 
-  // Analisi automatiche
+  // Analisi automatiche: suggerimenti per il comitato, mai applicati da soli.
+  const perAllegato = new Map(s.allegati.map((a) => [a.id_allegato, a.nome_file]));
   const listaAnalisi = analisi.length
-    ? h(
-        'ul',
-        { class: 'analisi-lista' },
-        analisi.map((a) =>
-          h(
-            'li',
-            {},
-            h('strong', {}, a.tipo_analisi.replaceAll('_', ' ').toLowerCase()),
-            ' ',
-            a.esito ? h('span', { class: `badge ${a.esito === 'OK' ? '' : 'badge-ia'}` }, a.esito.replace('_', ' ')) : null,
-            h('div', { class: 'small muted' }, `${a.modello} · ${formatDataOra(a.data_analisi)}${a.punteggio !== null ? ` · punteggio ${a.punteggio}` : ''}`),
-            h('pre', {}, JSON.stringify(a.risultato, null, 2)),
-            a.esito_revisione
-              ? h('div', { class: 'small' }, `Revisione: ${a.esito_revisione.toLowerCase()}${a.revisore ? ` (${a.revisore})` : ''}`)
-              : a.esito === 'OK'
-                ? null
-                : h(
-                  'div',
-                  { class: 'form-actions' },
-                  ['CONFERMATA', 'RESPINTA'].map((esito) =>
-                    h('button', {
-                      type: 'button',
-                      class: 'btn btn-small',
-                      on: {
-                        click: async () => {
-                          try {
-                            await api.patch(`/moderazione/analisi/${a.id_analisi}`, { esito_revisione: esito });
-                            sessionStorage.setItem('lnc-messaggio', 'Revisione registrata.');
-                            location.reload();
-                          } catch (err) {
-                            messaggio('error', err.message);
-                          }
-                        },
-                      },
-                    }, esito === 'CONFERMATA' ? 'Conferma risultato' : 'Respingi risultato'),
-                  ),
-                ),
-          ),
-        ),
-      )
+    ? h('ul', { class: 'analisi-lista' }, analisi.map((a) => schedaAnalisi(a, perAllegato)))
     : h('p', { class: 'muted' }, 'Nessuna analisi automatica.');
 
   return h(
@@ -363,6 +460,7 @@ async function pannelloModerazione() {
     h('h3', {}, 'Allegati'),
     allegati,
     h('h3', {}, 'Analisi automatiche'),
+    riquadroRiepilogo(riepilogo),
     listaAnalisi,
     h('h3', { class: 'titolo-pericolo' }, 'Elimina la segnalazione'),
     formElimina,

@@ -1388,6 +1388,38 @@ fieldset {
   font-size: 0.9rem;
 }
 
+.badge-esito.esito-ok {
+  background: var(--c-success-soft);
+  color: var(--c-success);
+}
+
+.badge-esito.esito-da_revisionare {
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
+}
+
+.badge-esito.esito-bloccato {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+}
+
+.riepilogo-ia {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid var(--c-warning);
+  background: var(--c-surface-2);
+  margin-bottom: 10px;
+}
+
+.riepilogo-ia.esito-ok { border-left-color: var(--c-success); }
+.riepilogo-ia.esito-bloccato { border-left-color: var(--c-danger); }
+.riepilogo-ia p { margin: 0 0 4px; }
+
+.analisi-lista details summary {
+  cursor: pointer;
+  margin-top: 6px;
+}
+
 .analisi-lista pre {
   white-space: pre-wrap;
   word-break: break-word;

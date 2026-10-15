@@ -114,9 +114,9 @@ Dato che il repository è vuoto, **nessun requisito applicativo è presente**.
 | RF10b | Storico con data, stato, operatore, motivazione | | ✅ | | `storico_stato`, trigger | P5 | Variabili di sessione `@lnc_id_operatore`, `@lnc_motivazione` lette dal trigger | Alta |
 | MOD | Moderazione umana (approva/rifiuta/correggi categorie) | | | ✅ | — | — | Area moderatore + API `/moderazione` | Alta |
 | ADM | Amministrazione (utenti, sospensione, ruoli, quartieri, categorie, stati) | | ✅ | | SQL `stato_account` | Manca applicazione | Area admin + API `/admin` | Media |
-| RF11 | Moderazione automatica IA del testo | | ✅ | | `analisi_ia` | Solo tabella | Interfaccia `ModerationProvider` + stub; elaborazione asincrona | Bassa (predisposizione) |
-| RF12 | Classificazione automatica categorie | | ✅ | | `segnalazione_categoria.origine_assegnazione/affidabilita_ia` | Solo struttura | Interfaccia `ClassificationProvider` + conferma moderatore | Bassa (predisposizione) |
-| RF13 | Analisi immagini/video | | ✅ | | `analisi_ia` | P11 (manca video e stato job) | Estensione `analisi_ia`, coda job | Bassa (predisposizione) |
+| RF11 | Moderazione automatica IA del testo | | ✅ | | `analisi_ia` | Solo tabella | **Implementato**: filtro a regole nella richiesta + modello linguistico (Mistral, fallback Groq) nel worker | Bassa |
+| RF12 | Classificazione automatica categorie | | ✅ | | `segnalazione_categoria.origine_assegnazione/affidabilita_ia` | Solo struttura | **Implementato**: regole nella richiesta + suggerimenti del modello da elenco chiuso; conferma del moderatore | Bassa |
+| RF13 | Analisi immagini/video | | ✅ | | `analisi_ia` | P11 (manca video e stato job) | **Implementato per le immagini**: pertinenza con modello di visione, autenticità (EXIF, pHash), controllo tecnico; video non analizzati | Bassa |
 | RF13b | Estrazione EXIF | | ✅ | | `allegato.latitudine_exif/longitudine_exif` | Nessuna estrazione | `exifr` all'upload (sincrono, leggero) | Media |
 | RF14 | Localizzazione (utente, geocoding, EXIF, mappa) | | ✅ | | `segnalazione.latitudine/longitudine` | Origine delle coordinate non tracciata | Selezione su mappa + EXIF; colonna `origine_coordinate` | Media |
 | SEC1 | HTTPS | | | ✅ | — | — | Reverse proxy TLS in produzione, cookie `Secure`, HSTS via Helmet | Alta |
@@ -135,7 +135,7 @@ Dato che il repository è vuoto, **nessun requisito applicativo è presente**.
 | PERF1 | Paginazione | | | ✅ | — | — | `LIMIT/OFFSET` con massimo 50 per pagina | Alta |
 | PERF2 | Indici | ✅ | | | SQL | Mancano indici composti e ricerca testuale | Indice `(id_stato_corrente, data_inserimento)`, `FULLTEXT(titolo, descrizione)` | Media |
 | PERF3 | Compressione file | | | ✅ | — | — | `sharp` per le immagini; video solo limiti di dimensione | Media |
-| PERF4 | Elaborazioni IA asincrone | | | ✅ | — | — | Tabella `job_elaborazione` + worker separato | Bassa |
+| PERF4 | Elaborazioni IA asincrone | | | ✅ | — | — | **Implementato**: `job_elaborazione` + worker (nel server, processo separato o `waitUntil` su Vercel), limiti di richieste, rinvii e ripresa dei job interrotti | Bassa |
 | PERF5 | Cache classifiche | | | ✅ | — | — | Cache in memoria con TTL breve (fase successiva) | Bassa |
 | AFF1 | Transazioni atomiche | | | ✅ | — | — | Transazione unica segnalazione+allegati+categorie; eliminazione file se rollback | Critica |
 | AFF2 | Backup e ripristino | | | ✅ | — | — | Procedura `mysqldump` documentata nel README | Bassa |
@@ -248,6 +248,10 @@ Lo script ufficiale resta **invariato** in `database/schema/` come riferimento d
 | `007_indici.sql` | Indici composti e `FULLTEXT` | PERF2 | Media |
 | `008_allegati.sql` | CHECK `tipo_media`/`tipo_mime`, `hash_sha256`, `percorso_file VARCHAR(500) UNIQUE`, `segnalazione.origine_coordinate` | P8, RF14 | Bassa |
 | `009_predisposizione_ia.sql` | `ANALISI_VIDEO` nel CHECK, `analisi_ia.esito_revisione/id_revisore/data_revisione`, tabella `job_elaborazione` | P11 | Bassa |
+| `010_limiti_richieste.sql` | Tabella `limite_richieste`: contatori dei limiti di frequenza condivisi tra istanze (anche per i provider IA) | Sicurezza, PERF4 | Media |
+| `011_quartieri_milano.sql` | Quartieri di Milano e comuni dell'area metropolitana | — | Bassa |
+| `012_nascondi_segnalazioni.sql` | `segnalazione.nascosta`, motivo e data; viste pubbliche filtrate | MOD | Media |
+| `013_ia_reale.sql` | `VERIFICA_AUTENTICITA` nei CHECK di `analisi_ia` e `job_elaborazione`; `allegato.hash_percettivo` (indicizzato) e `data_scatto_exif`; `job_elaborazione.disponibile_dal` per i job rimandati. Rollback nel commento del file | RF11–RF13, PERF4 | Media |
 
 La **macchina a stati** (P6) è gestita nel service applicativo con un'unica mappa delle transizioni ammesse.
 Una tabella `transizione_stato` configurabile dall'amministratore potrà sostituirla in seguito.
@@ -394,23 +398,26 @@ Transazione MySQL: segnalazione + allegato (metadati) + segnalazione_categoria
   ↳ se fallisce: rollback + eliminazione dei file salvati
 ```
 
-### 5.3 Flusso delle analisi future (IA)
+### 5.3 Flusso delle analisi IA (implementato)
 
 ```text
-Segnalazione inviata (stato "Inserita")
+Invio della segnalazione
+  ↓ nella richiesta, senza servizi esterni:
+  filtro del testo a regole (BLOCCATO → 422), categorie suggerite a regole, EXIF, pHash e data di scatto
+  ↓ transazione: segnalazione, allegati, categorie, analisi a regole, job in coda
+Coda job_elaborazione (IN_CODA → IN_CORSO → COMPLETATO | ERRORE; disponibile_dal per i rinvii)
+  ↓ worker: dopo la risposta (waitUntil su Vercel), a intervalli nel server o come processo separato;
+  ↓ al massimo AI_JOB_PER_RUN job, stop con meno di 10 s residui
+Esecutori: MODERAZIONE_TESTO (testo → moderazione + classificazione), VERIFICA_PERTINENZA (per immagine),
+           ANALISI_IMMAGINE (controllo tecnico), VERIFICA_AUTENTICITA (EXIF, foto già usate, segnale del modello)
+  ↓ modello linguistico: Mistral, fallback Groq; limiti RPM/RPD su limite_richieste; risposta JSON validata (Zod)
+Risultati in analisi_ia (modello effettivo, esito, motivi) + riepilogo per il comitato
   ↓
-Coda di elaborazione (tabella job_elaborazione; in futuro BullMQ/Redis)
-  ↓
-Worker separato: moderazione testo / classificazione / EXIF / computer vision
-  ↓
-Risultati in analisi_ia (+ categorie con origine 'IA' e affidabilità)
-  ↓
-Revisione del moderatore (conferma/corregge → esito_revisione, cambio di stato)
+Revisione del moderatore (conferma/corregge/respinge → esito_revisione; cambio di stato; nascondi)
 ```
 
-Il backend espone interfacce (`ModerationProvider`, `ClassificationProvider`, `VisionProvider`) con
-un'implementazione "nulla" o a regole semplici. Il servizio IA reale potrà essere collegato in seguito
-(API esterna o microservizio Python) senza modificare controller e route.
+Il worker non cambia mai stato, visibilità o categorie: le decisioni restano al comitato. Provider, limiti, consumi e
+privacy sono descritti in [`AI-PROVIDERS.md`](AI-PROVIDERS.md); il piano di lavoro in [`piano-ia-reale.md`](piano-ia-reale.md).
 
 ### 5.4 Matrice dei permessi
 
@@ -486,7 +493,7 @@ la-nostra-citta-webapp/
 │   │   ├── repositories/
 │   │   ├── validators/             # schemi Zod
 │   │   ├── storage/                # LocalStorage (+ futuro S3)
-│   │   ├── ai/                     # interfacce provider + stub (fase 15)
+│   │   ├── ai/                     # provider a regole e LLM (Mistral/Groq), regole di esito, worker (fase 15 + IA reale)
 │   │   ├── utils/                  # AppError, logger, audit
 │   │   ├── app.js                  # crea l'app Express (usata anche dai test)
 │   │   └── server.js               # avvio HTTP
@@ -534,6 +541,8 @@ Ogni fase lascia il progetto avviabile.
 | 15 | Predisposizione IA | `server/src/ai/*`, migrazione 009, `scripts/worker.js` | Interfacce provider, coda job, stub moderazione e classificazione, EXIF come analisi | — | Complessità eccessiva | Una segnalazione crea un job; il worker scrive in `analisi_ia`; il moderatore vede i risultati |
 | 16 | Adattamento mobile (futuro) | — | **Non in questa fase.** Resta disponibile l'API `/api/v1` documentata; token Bearer aggiungibile | — | — | Solo documentato |
 
+> La fase 15 (predisposizione) è stata poi completata dall'integrazione dell'IA reale: migrazione 013, modello linguistico Mistral con fallback Groq, verifica di autenticità. Vedi §5.3, [`piano-ia-reale.md`](piano-ia-reale.md) e [`AI-PROVIDERS.md`](AI-PROVIDERS.md).
+
 ---
 
 ## 8. Decisioni prese
@@ -563,20 +572,20 @@ Alla conferma di procedere sono state adottate le scelte proposte:
 | RF08 Consultazione, filtri, ricerca, mappa | ✅ FULLTEXT, paginazione, Leaflet | `segnalazione.repository.js`, `index.html`, `mappa.html` |
 | RF09 Sostegno e classifica | ✅ niente duplicati né autosostegno, conteggio reale (P3, P4 risolti) | migrazione 004, `classifica.html` |
 | RF10 Ciclo di vita e storico | ✅ macchina a stati, operatore e motivazione (P5, P6, P7 risolti) | `cicloVita.js`, migrazioni 002 e 005 |
-| RF11 Moderazione automatica | ✅ a regole, in tempo reale: blocca o segnala per revisione | `ai/moderazione.js` |
-| RF12 Classificazione | ✅ a regole, con affidabilità e conferma del moderatore | `ai/classificazione.js` |
-| RF13 Immagini/video ed EXIF | ✅ EXIF e controllo tecnico asincrono delle immagini; pertinenza e video da collegare a un modello | `ai/visione.js`, `ai/worker.js` |
+| RF11 Moderazione automatica | ✅ a regole in tempo reale (blocca o segnala) + modello linguistico asincrono (Mistral, fallback Groq) | `ai/moderazione.js`, `ai/worker.js`, `ai/providers/` |
+| RF12 Classificazione | ✅ a regole e con il modello (solo suggerimenti da elenco chiuso), conferma del moderatore | `ai/classificazione.js`, `ai/worker.js` |
+| RF13 Immagini/video ed EXIF | ✅ EXIF, controllo tecnico, pertinenza con modello di visione, autenticità (posizione EXIF, foto già usate con pHash); video non analizzati | `ai/visione.js`, `ai/autenticita.js`, `ai/phash.js`, `ai/worker.js` |
 | RF14 Localizzazione | ✅ mappa OpenStreetMap, ricerca indirizzi e indirizzo del punto (Nominatim, via server con limite di frequenza e cache), segnaposto trascinabile, geolocalizzazione, GPS della foto con consenso | migrazione 008, `services/geocodifica.service.js`, `nuova-segnalazione.html` |
 | Sicurezza | ✅ Helmet/CSP, rate limit, controllo Origin, query parametrizzate, audit log | `middlewares/security.js`, migrazione 006 |
 | Privacy | ✅ informativa, anonimato, account anonimizzato, EXIF rimosso | `privacy.html`, `utente.service.js` |
 | Usabilità e accessibilità | ✅ mobile-first, tema scuro, errori per campo, tastiera, alternativa testuale alla mappa | `client/` |
 | Prestazioni | ✅ paginazione, indici, compressione immagini, coda asincrona; ⏳ cache della classifica | migrazione 007 |
-| Test | ✅ 104 test automatici su API e database | `server/tests/` |
+| Test | ✅ 216 test automatici su API, database e IA (provider simulati, nessuna rete) | `server/tests/` |
 
 ### 9.2 Verifiche eseguite
 
 - Migrazioni applicate su un database vuoto e su un database creato con lo script ufficiale (con dati).
-- `npm test`: 104 test superati su MySQL 8.0.46.
+- `npm test`: 104 test superati su MySQL 8.0.46; dopo l'integrazione dell'IA (14/10/2026) 216 test superati su MySQL 8.4.
 - Percorso completo nel browser (Chromium) su desktop e mobile per cittadino, moderatore e amministratore:
   nessun errore JavaScript né violazione della Content Security Policy.
 - `npm audit`: nessuna vulnerabilità nota.
@@ -596,7 +605,7 @@ Vedi [`DEPLOY-VERCEL.md`](../DEPLOY-VERCEL.md). Scelte principali:
 
 - Invio e-mail (SMTP) per il recupero password.
 - Ricodifica e rimozione dei metadati dei video (ffmpeg).
-- Modelli IA reali al posto dei provider a regole, per esempio un microservizio che implementi le stesse interfacce.
+- Analisi dei video (estrazione di fotogrammi con ffmpeg) e verifica della soglia del pHash su foto reali.
 - Object storage e antivirus: le interfacce (`storage`, `scansionaFile`) sono pronte.
 - Cache della classifica e delle statistiche, se il traffico lo richiederà.
 - Client mobile o desktop: si appoggerà alla stessa API aggiungendo un'autenticazione a token.

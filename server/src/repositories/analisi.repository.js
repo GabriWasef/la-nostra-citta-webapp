@@ -72,12 +72,13 @@ export async function prendiJob(conn) {
   try {
     const [righe] = await conn.execute(
       `SELECT id_job, tipo_analisi, tentativi, id_segnalazione, id_allegato FROM job_elaborazione
-        WHERE stato = 'IN_CODA' ORDER BY id_job LIMIT 1 FOR UPDATE SKIP LOCKED`,
+        WHERE stato = 'IN_CODA' AND (disponibile_dal IS NULL OR disponibile_dal <= CURRENT_TIMESTAMP)
+        ORDER BY id_job LIMIT 1 FOR UPDATE SKIP LOCKED`,
     );
     const job = righe[0] ?? null;
     if (job) {
       await conn.execute(
-        "UPDATE job_elaborazione SET stato = 'IN_CORSO', tentativi = tentativi + 1 WHERE id_job = ?",
+        "UPDATE job_elaborazione SET stato = 'IN_CORSO', tentativi = tentativi + 1, disponibile_dal = NULL WHERE id_job = ?",
         [job.id_job],
       );
     }
@@ -93,10 +94,59 @@ export async function completaJob(idJob, db = pool) {
   await db.execute("UPDATE job_elaborazione SET stato = 'COMPLETATO', ultimo_errore = NULL WHERE id_job = ?", [idJob]);
 }
 
-export async function fallisciJob(idJob, errore, riprova, db = pool) {
-  await db.execute('UPDATE job_elaborazione SET stato = ?, ultimo_errore = ? WHERE id_job = ?', [
-    riprova ? 'IN_CODA' : 'ERRORE',
-    String(errore).slice(0, 2000),
-    idJob,
-  ]);
+/** Errore: riprova più tardi (dopo ritardoSecondi) oppure, finiti i tentativi, stato ERRORE. */
+export async function fallisciJob(idJob, errore, riprova, ritardoSecondi = 0, db = pool) {
+  await db.execute(
+    `UPDATE job_elaborazione
+        SET stato = ?, ultimo_errore = ?,
+            disponibile_dal = IF(? > 0, CURRENT_TIMESTAMP + INTERVAL ? SECOND, NULL)
+      WHERE id_job = ?`,
+    [riprova ? 'IN_CODA' : 'ERRORE', String(errore).slice(0, 2000), ritardoSecondi, ritardoSecondi, idJob],
+  );
+}
+
+/** Rimette in coda un job senza contare il tentativo appena fatto (es. limite del provider raggiunto). */
+export async function rimandaJob(idJob, motivo, ritardoSecondi, db = pool) {
+  await db.execute(
+    `UPDATE job_elaborazione
+        SET stato = 'IN_CODA', tentativi = GREATEST(tentativi - 1, 0), ultimo_errore = ?,
+            disponibile_dal = CURRENT_TIMESTAMP + INTERVAL ? SECOND
+      WHERE id_job = ?`,
+    [String(motivo).slice(0, 2000), Math.max(1, Math.ceil(ritardoSecondi)), idJob],
+  );
+}
+
+/**
+ * Job rimasti IN_CORSO perché l'elaborazione è stata interrotta (funzione terminata, processo fermato):
+ * tornano in coda, oppure in ERRORE se avevano già esaurito i tentativi.
+ * @returns {Promise<number>} job ripresi
+ */
+export async function riprendiJobBloccati(minuti, tentativiMassimi, db = pool) {
+  const [r] = await db.execute(
+    `UPDATE job_elaborazione
+        SET stato = IF(tentativi >= ?, 'ERRORE', 'IN_CODA'),
+            ultimo_errore = 'Elaborazione interrotta: job ripreso dalla manutenzione.'
+      WHERE stato = 'IN_CORSO' AND data_aggiornamento <= CURRENT_TIMESTAMP - INTERVAL ? MINUTE`,
+    [tentativiMassimi, minuti],
+  );
+  return r.affectedRows;
+}
+
+/** Stato dei job di una segnalazione (per il riepilogo del comitato). */
+export async function jobPerSegnalazione(idSegnalazione, db = pool) {
+  const [righe] = await db.execute(
+    'SELECT id_job, tipo_analisi, stato, tentativi, id_allegato FROM job_elaborazione WHERE id_segnalazione = ? ORDER BY id_job',
+    [idSegnalazione],
+  );
+  return righe;
+}
+
+/** Ultima analisi di un tipo per un allegato (es. la pertinenza, per il segnale di autenticità). */
+export async function ultimaPerAllegato(idAllegato, tipoAnalisi, db = pool) {
+  const [righe] = await db.execute(
+    `SELECT id_analisi, modello, risultato, esito FROM analisi_ia
+      WHERE id_allegato = ? AND tipo_analisi = ? ORDER BY id_analisi DESC LIMIT 1`,
+    [idAllegato, tipoAnalisi],
+  );
+  return righe[0] ?? null;
 }
