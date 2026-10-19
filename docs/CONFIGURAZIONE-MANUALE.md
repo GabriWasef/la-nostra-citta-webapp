@@ -147,8 +147,9 @@ legale.**
 5. Annotare nel password manager i valori per `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
 6. **Connessione cifrata.**
    - Quasi tutti i fornitori in cloud la richiedono, e il progetto la supporta: `DB_SSL=true`.
-   - Se il fornitore usa un certificato di un'autorità non pubblica, incollarlo in `DB_SSL_CA`, su una riga, con
-     `\n` al posto degli a capo.
+   - Se il fornitore usa un certificato di un'autorità non pubblica, salvarlo come file PEM in
+     `server/certs/db-ca.pem` (è un certificato pubblico: si può versionare), oppure incollarlo in `DB_SSL_CA`, su
+     una riga, con `\n` al posto degli a capo. Se il file esiste, ha la precedenza sulla variabile.
 7. **Accesso dall'esterno.** Vercel non ha indirizzi IP fissi: l'accesso va aperto a internet e protetto da TLS e da
    una password lunga.
 8. **Backup.** Annotare frequenza e durata di conservazione dei backup automatici offerti dal fornitore. In aggiunta,
@@ -321,7 +322,7 @@ dedicate, per non consumare la quota di produzione. Development usa solo valori 
 | "errore HTTP 404" o "model not found" nei job | modello dismesso o nome sbagliato | aggiornare `MISTRAL_MODEL` o `GROQ_MODEL` (§1, §2) |
 | `db:migrate:remoto` si ferma con un errore sui trigger | il fornitore non consente i trigger (`log_bin_trust_function_creators`) | attivare l'opzione nel pannello o cambiare fornitore |
 | `ECONNREFUSED` o `ETIMEDOUT` verso il database | il database non accetta connessioni da internet | aprire l'accesso esterno nel pannello del fornitore |
-| `self-signed certificate` o `unable to verify` | certificato di un'autorità non pubblica | incollarlo in `DB_SSL_CA` |
+| `self-signed certificate` o `unable to verify` | certificato di un'autorità non pubblica | salvarlo in `server/certs/db-ca.pem` o incollarlo in `DB_SSL_CA` |
 | Invio delle segnalazioni con "errore imprevisto" o caricamento delle foto fallito | Blob non collegato, non privato o con prefisso diverso da `BLOB` | §6; controllare "Diagnostica → Archivio" |
 | Nessuna categoria tra cui scegliere | `db:seed:remoto` non eseguito | eseguirlo (§10) |
 | Analisi rimaste in coda per giorni | cron non attivo o `CRON_SECRET` mancante; su Vercel il worker gira solo dopo un invio e una volta al giorno | §11; vedere il punto D2 di [`revisione-finale.md`](revisione-finale.md) |

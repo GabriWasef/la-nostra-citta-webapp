@@ -9,7 +9,7 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 60,
-      "includeFiles": "node_modules/**"
+      "includeFiles": "{node_modules/**,server/certs/**}"
     }
   },
   "rewrites": [

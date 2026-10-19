@@ -31,6 +31,8 @@ const schema = z.object({
   DB_SSL: booleano.default(false),
   // Certificato della CA del provider, solo se non è una CA pubblica (PEM; "\n" per andare a capo).
   DB_SSL_CA: z.string().default(''),
+  // File PEM con lo stesso certificato (percorso dalla radice del progetto): se esiste, ha la precedenza su DB_SSL_CA.
+  DB_SSL_CA_FILE: z.string().default('server/certs/db-ca.pem'),
 
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET deve avere almeno 32 caratteri'),
   SESSION_MAX_AGE_HOURS: z.coerce.number().positive().default(8),
