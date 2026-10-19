@@ -72,9 +72,12 @@ Se `db:migrate:remoto` segnala un errore sui trigger, il database non è adatto 
 | `CRON_SECRET` | il secondo segreto generato (Vercel lo invia da solo al cron) |
 | `AI_WORKER_INTERVAL_MS` | `0` |
 | `GEOCODING_EMAIL` | (facoltativa) la tua e-mail di contatto per Nominatim |
-| `AI_PROVIDER` | `regole` (predefinito) oppure `mistral` per il modello linguistico (vedi sotto) |
+| `AI_PROVIDER` | `regole` (predefinito) oppure `cloudflare` o `mistral` per il modello linguistico (vedi sotto) |
 
-   **Modello linguistico (facoltativo).** Con `AI_PROVIDER=mistral` aggiungi (solo qui, mai in `vercel.json` o nel repository):
+   **Cloudflare Workers AI, Groq e moderazione automatica.** Variabili, ordine di configurazione, migrazione 014 e
+   prove sull'anteprima sono in [`docs/GUIDA-TEST-IA.md`](docs/GUIDA-TEST-IA.md).
+
+   **Modello linguistico Mistral (facoltativo).** Con `AI_PROVIDER=mistral` aggiungi (solo qui, mai in `vercel.json` o nel repository):
 
    | Variabile | Valore |
    | --- | --- |
