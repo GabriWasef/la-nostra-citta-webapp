@@ -26,8 +26,16 @@ export async function nascondi(req, res) {
 
 export async function mostra(req, res) {
   const id = req.valid.params.id;
-  const esito = await segnalazioneService.mostra(id);
+  const esito = await segnalazioneService.mostra(id, req.user);
   await audit(req, 'SEGNALAZIONE_RIPRISTINATA', 'segnalazione', id, esito);
+  res.json({ segnalazione: await segnalazioneService.dettaglio(id, req.user) });
+}
+
+// Segnalazione nascosta dalla moderazione automatica: il comitato conferma che resta nascosta.
+export async function confermaNascosta(req, res) {
+  const id = req.valid.params.id;
+  const esito = await segnalazioneService.confermaNascosta(id, req.user);
+  await audit(req, 'NASCONDIMENTO_IA_CONFERMATO', 'segnalazione', id, esito);
   res.json({ segnalazione: await segnalazioneService.dettaglio(id, req.user) });
 }
 

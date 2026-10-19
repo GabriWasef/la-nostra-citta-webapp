@@ -1,11 +1,17 @@
-// Regole di esito delle analisi IA. Sono suggerimenti per il comitato, mai applicati in automatico:
-// nessuna regola cambia lo stato di una segnalazione o la nasconde.
-// - BLOCCATO: solo contenuti gravi del testo (minacce, odio) o immagini inappropriate;
-// - DA_REVISIONARE: incongruenze, confidenza bassa, sospetti di falsità, provider non disponibile;
-// - OK: tutti i controlli superati con confidenza alta.
-// Il sospetto che una foto sia generata o falsa non produce mai BLOCCATO.
+// Regole di esito delle analisi IA. Nessuna regola cambia lo stato di una segnalazione.
+// - BLOCCATO: testo con un motivo grave (minaccia, odio, insulto grave, contenuto sessuale), oppure
+//   spam, testo privo di senso o non pertinente con confidenza >= AI_SOGLIA_AUTO_NASCONDI;
+//   immagini inappropriate (solo suggerimento: l'auto-nascondi riguarda la moderazione del testo);
+// - DA_REVISIONARE: tutto il resto che non è a posto (DUBBIO, confidenza sotto soglia, incongruenze,
+//   sospetti di falsità, provider non disponibile);
+// - OK: tutti i controlli superati.
+// Solo un BLOCCATO della moderazione del testo fatta dal modello nasconde la segnalazione, e solo con
+// AI_AUTO_NASCONDI=true (ai/worker.js). Il sospetto che una foto sia generata o falsa non produce mai BLOCCATO.
+import { MOTIVI_GRAVI, MOTIVI_NON_OPPORTUNI } from './schemi.js';
 
 export const CONFIDENZA_MINIMA = 0.7;
+// Valore predefinito di AI_SOGLIA_AUTO_NASCONDI.
+export const SOGLIA_AUTO_NASCONDI = 0.9;
 // Il segnale "sembra generata o montata" del modello pesa solo se dichiarato con almeno questa confidenza.
 export const CONFIDENZA_SEGNALE_AUTENTICITA = 0.5;
 
@@ -17,13 +23,21 @@ export const punteggioGravita = (gravita) => ({ nessuna: 0, bassa: 0.5, alta: 1 
 
 /**
  * Moderazione del testo fatta dal modello.
- * @param {{testo: {accettabile: boolean, gravita: string, motivi: string[]}, esito_suggerito: string}} r
+ * @param {{testo: {accettabile: boolean, gravita: string, motivi: string[]}, motivo: string|null, confidenza: number, esito_suggerito: string}} r
+ * @param {{soglia?: number}} [opzioni] soglia: AI_SOGLIA_AUTO_NASCONDI
  */
-export function esitoModerazione(r) {
+export function esitoModerazione(r, { soglia = SOGLIA_AUTO_NASCONDI } = {}) {
+  const { motivo, confidenza } = r;
+  if (MOTIVI_GRAVI.includes(motivo)) return { esito: 'BLOCCATO', motivi: [motivo] };
+  if (MOTIVI_NON_OPPORTUNI.includes(motivo)) {
+    return confidenza >= soglia ? { esito: 'BLOCCATO', motivi: [motivo] } : { esito: 'DA_REVISIONARE', motivi: [motivo, 'CONFIDENZA_BASSA'] };
+  }
+  if (motivo === 'DUBBIO') return { esito: 'DA_REVISIONARE', motivi: ['DUBBIO'] };
+  // Nessun motivo: la gravità dichiarata dal modello porta al più a una verifica del comitato.
   const { accettabile, gravita } = r.testo;
-  if (!accettabile && gravita === 'alta') return { esito: 'BLOCCATO', motivi: ['TESTO_GRAVE'] };
   const motivi = [];
-  if (!accettabile) motivi.push('TESTO_NON_ACCETTABILE');
+  if (!accettabile && gravita === 'alta') motivi.push('TESTO_GRAVE');
+  else if (!accettabile) motivi.push('TESTO_NON_ACCETTABILE');
   else if (gravita !== 'nessuna') motivi.push('TESTO_DA_VERIFICARE');
   // Un BLOCCATO del modello senza gravità alta resta un dubbio da verificare, non un blocco.
   if (r.esito_suggerito !== 'OK') motivi.push('ESITO_SUGGERITO_DAL_MODELLO');

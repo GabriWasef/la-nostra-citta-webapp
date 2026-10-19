@@ -2,6 +2,22 @@ import { pool } from '../config/db.js';
 
 const segnaposti = (n) => Array(n).fill('?').join(', ');
 
+// Motivazione delle segnalazioni nascoste dalla moderazione automatica: "AUTO_IA: <motivo>".
+export const PREFISSO_AUTO_IA = 'AUTO_IA: ';
+const NASCOSTA_DA_IA = "s.nascosta = TRUE AND s.motivo_nascondimento LIKE 'AUTO\\_IA:%'";
+// Analisi del testo o degli allegati con un esito da verificare e non ancora revisionate.
+const ANALISI_DA_REVISIONARE = `(EXISTS (SELECT 1 FROM analisi_ia ai
+                   WHERE ai.id_segnalazione = s.id_segnalazione
+                     AND ai.esito IN ('DA_REVISIONARE', 'BLOCCATO') AND ai.esito_revisione IS NULL)
+          OR EXISTS (SELECT 1 FROM analisi_ia ai JOIN allegato al ON al.id_allegato = ai.id_allegato
+                      WHERE al.id_segnalazione = s.id_segnalazione
+                        AND ai.esito IN ('DA_REVISIONARE', 'BLOCCATO') AND ai.esito_revisione IS NULL))`;
+// Viste della coda di moderazione: nascoste dall'IA e non ancora esaminate; da revisionare (tutte le altre).
+const VISTE = {
+  nascoste_ia: `${NASCOSTA_DA_IA} AND s.data_conferma_nascondimento IS NULL`,
+  da_revisionare: `${ANALISI_DA_REVISIONARE} AND NOT (${NASCOSTA_DA_IA} AND s.data_conferma_nascondimento IS NULL)`,
+};
+
 /**
  * Colonne comuni a elenchi e dettaglio. L'autore è mostrato solo se la
  * visibilità non è ANONIMA: la regola sui dati esposti è comunque
@@ -14,15 +30,11 @@ const SELECT_BASE = `
          s.id_quartiere, q.nome AS quartiere,
          st.id_stato, st.codice AS codice_stato, st.nome AS stato,
          (st.pubblica = TRUE AND s.nascosta = FALSE) AS pubblica, s.nascosta, s.motivo_nascondimento, st.finale,
+         s.data_nascondimento, s.data_conferma_nascondimento,
          (SELECT COUNT(*) FROM sostegno so WHERE so.id_segnalazione = s.id_segnalazione) AS numero_sostegni,
          EXISTS (SELECT 1 FROM sostegno so WHERE so.id_segnalazione = s.id_segnalazione AND so.id_utente = ?) AS sostenuta,
          -- Analisi del testo e dei suoi allegati (pertinenza, autenticità, controllo tecnico delle immagini).
-         (EXISTS (SELECT 1 FROM analisi_ia ai
-                   WHERE ai.id_segnalazione = s.id_segnalazione
-                     AND ai.esito IN ('DA_REVISIONARE', 'BLOCCATO') AND ai.esito_revisione IS NULL)
-          OR EXISTS (SELECT 1 FROM analisi_ia ai JOIN allegato al ON al.id_allegato = ai.id_allegato
-                      WHERE al.id_segnalazione = s.id_segnalazione
-                        AND ai.esito IN ('DA_REVISIONARE', 'BLOCCATO') AND ai.esito_revisione IS NULL)) AS da_revisionare_ia
+         ${ANALISI_DA_REVISIONARE} AS da_revisionare_ia
     FROM segnalazione s
     JOIN utente u ON u.id_utente = s.id_autore
     JOIN quartiere q ON q.id_quartiere = s.id_quartiere
@@ -99,6 +111,7 @@ export async function cerca(filtri, ambito, idViewer = null, db = pool) {
     }
   }
   if (filtri.soloConCoordinate) where.push('s.latitudine IS NOT NULL');
+  if (VISTE[filtri.vista]) where.push(VISTE[filtri.vista]);
 
   const clausola = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const [[{ totale }]] = await db.execute(
@@ -122,7 +135,8 @@ export async function findById(id, idViewer = null, db = pool) {
 export async function findAccesso(id, db = pool) {
   const [righe] = await db.execute(
     `SELECT s.id_segnalazione, s.id_autore, s.visibilita, st.codice AS codice_stato, st.nome AS stato,
-            (st.pubblica = TRUE AND s.nascosta = FALSE) AS pubblica, s.nascosta, s.titolo
+            (st.pubblica = TRUE AND s.nascosta = FALSE) AS pubblica, s.nascosta, s.titolo,
+            s.motivo_nascondimento, s.data_conferma_nascondimento
        FROM segnalazione s JOIN stato_segnalazione st ON st.id_stato = s.id_stato_corrente
       WHERE s.id_segnalazione = ?`,
     [id],
@@ -151,9 +165,15 @@ export async function updateStato(id, idStato, db = pool) {
 /** Nasconde (con motivo) o rende di nuovo visibile una segnalazione. */
 export async function impostaNascosta(id, nascosta, motivo = null, db = pool) {
   await db.execute(
-    'UPDATE segnalazione SET nascosta = ?, motivo_nascondimento = ?, data_nascondimento = ? WHERE id_segnalazione = ?',
+    `UPDATE segnalazione SET nascosta = ?, motivo_nascondimento = ?, data_nascondimento = ?, data_conferma_nascondimento = NULL
+      WHERE id_segnalazione = ?`,
     [nascosta, nascosta ? motivo : null, nascosta ? new Date() : null, id],
   );
+}
+
+/** Il comitato conferma una segnalazione nascosta dalla moderazione automatica: resta nascosta. */
+export async function confermaNascondimento(id, db = pool) {
+  await db.execute('UPDATE segnalazione SET data_conferma_nascondimento = CURRENT_TIMESTAMP WHERE id_segnalazione = ?', [id]);
 }
 
 /** Elimina la segnalazione; allegati, categorie, sostegni, storico e analisi seguono a cascata. */

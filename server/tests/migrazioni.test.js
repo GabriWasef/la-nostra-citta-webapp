@@ -24,6 +24,30 @@ describe('Versione del server', () => {
   });
 });
 
+describe('Migrazione 014 (moderazione IA e quote)', () => {
+  before(async () => {
+    assicuraDatabaseDiTest();
+    await migra({ fresh: true, log: silenzioso });
+  });
+
+  test('ai_quota: una riga per provider e giorno, contatori non negativi, upsert atomico', async () => {
+    const somma = "INSERT INTO ai_quota (provider, giorno, richieste, token) VALUES ('groq', '2026-10-19', 1, 10) AS n ON DUPLICATE KEY UPDATE richieste = ai_quota.richieste + 1, token = ai_quota.token + n.token";
+    await pool.query(somma);
+    await pool.query(somma);
+    const [[riga]] = await pool.query("SELECT richieste, token FROM ai_quota WHERE provider = 'groq' AND giorno = '2026-10-19'");
+    assert.deepEqual([riga.richieste, Number(riga.token)], [2, 20]);
+    const err = await pool.query("UPDATE ai_quota SET richieste = -1").then(() => null, (e) => e);
+    assert.equal(err?.errno, 3819);
+  });
+
+  test('segnalazione.data_conferma_nascondimento: facoltativa', async () => {
+    const [[col]] = await pool.query(
+      "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'segnalazione' AND COLUMN_NAME = 'data_conferma_nascondimento'",
+    );
+    assert.equal(col.IS_NULLABLE, 'YES');
+  });
+});
+
 describe('Migrazione 013 (IA reale)', () => {
   let idSegnalazione, idAllegato;
   const errore = (sql, params) => pool.query(sql, params).then(() => null, (e) => e);

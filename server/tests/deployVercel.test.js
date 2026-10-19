@@ -4,6 +4,7 @@ import { before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const { ROOT_DIR } = await import('../src/config/env.js');
 const { cspComeStringa, direttiveCsp } = await import('../src/config/csp.js');
@@ -29,7 +30,7 @@ describe('vercel.json', () => {
   test('le richieste /api/* vanno alla funzione e la funzione esiste', async () => {
     assert.deepEqual(config.rewrites, [{ source: '/api/:path*', destination: '/api' }]);
     assert.ok(config.functions['api/index.js']);
-    const modulo = await import(path.join(ROOT_DIR, 'api/index.js'));
+    const modulo = await import(pathToFileURL(path.join(ROOT_DIR, 'api/index.js')).href);
     assert.equal(typeof modulo.default, 'function', 'api/index.js esporta l’applicazione Express');
     assert.ok(config.functions['api/index.js'].maxDuration >= 30, 'tempo sufficiente per elaborare i video');
   });

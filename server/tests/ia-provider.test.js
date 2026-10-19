@@ -1,4 +1,4 @@
-// Adapter OpenAI-compatibile (Mistral, Groq), fallback e registro dei provider: nessuna rete.
+// Adapter OpenAI-compatibile (Mistral, Cloudflare, Groq), fallback e registro dei provider: nessuna rete.
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import './setup-env.js';
@@ -22,6 +22,9 @@ const config = (extra = {}) => ({
   MISTRAL_MODEL: 'mistral-small-latest',
   GROQ_API_KEY: 'chiave-groq-di-prova',
   GROQ_MODEL: 'qwen/qwen3.8-27b',
+  CLOUDFLARE_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
+  CLOUDFLARE_API_TOKEN: 'token-cloudflare-di-prova',
+  CLOUDFLARE_MODEL: '@cf/google/gemma-4-26b-a4b-it',
   AI_TIMEOUT_MS: 15_000,
   AI_MAX_RETRIES: 2,
   ...extra,
@@ -73,18 +76,28 @@ describe('Adapter OpenAI-compatibile', () => {
     assert.deepEqual((await p.completaJson(MESSAGGI, schemaTesto)).dati, RISPOSTA_TESTO);
   });
 
-  test('JSON non valido: una sola nuova richiesta, che può riuscire', async () => {
+  test('JSON non valido: errore subito, senza chiedere di nuovo allo stesso provider', async () => {
     const { p, fetch } = adapter([testo('non è json'), json(RISPOSTA_TESTO)]);
-    assert.deepEqual((await p.completaJson(MESSAGGI, schemaTesto)).dati, RISPOSTA_TESTO);
-    assert.equal(fetch.chiamate.length, 2);
-  });
-
-  test('JSON non valido due volte (o fuori schema): errore dopo esattamente due richieste', async () => {
-    const { p, fetch } = adapter([json({ testo: 'sbagliato' }), testo('{')]);
     const err = await rifiuta(p.completaJson(MESSAGGI, schemaTesto));
     assert.ok(err instanceof ErroreProvider);
     assert.equal(err.stato, 'RISPOSTA_NON_VALIDA');
-    assert.equal(fetch.chiamate.length, 2);
+    assert.equal(fetch.chiamate.length, 1);
+  });
+
+  test('JSON fuori schema (motivo fuori elenco): errore dopo una sola richiesta', async () => {
+    const { p, fetch } = adapter([json({ ...RISPOSTA_TESTO, motivo: 'VOLGARE' })]);
+    const err = await rifiuta(p.completaJson(MESSAGGI, schemaTesto));
+    assert.equal(err.stato, 'RISPOSTA_NON_VALIDA');
+    assert.match(err.message, /motivo/);
+    assert.equal(fetch.chiamate.length, 1);
+  });
+
+  test('token della risposta (usage) registrati nella quota del giorno prenotato', async () => {
+    const registrati = [];
+    const limitatore = { prenota: async () => ({ ok: true, giorno: '2026-10-19' }), registraToken: async (t, g) => registrati.push([t, g]) };
+    const { p } = adapter([json(RISPOSTA_TESTO, { token: 1234 })], { limitatore });
+    await p.completaJson(MESSAGGI, schemaTesto);
+    assert.deepEqual(registrati, [[1234, '2026-10-19']]);
   });
 
   test('429: attende quanto indicato da Retry-After e riprova', async () => {
@@ -149,6 +162,55 @@ describe('Adapter OpenAI-compatibile', () => {
     const err = await rifiuta(p.completaJson(MESSAGGI, schemaTesto));
     assert.ok(!err.message.includes(CHIAVE), err.message);
     assert.ok(!JSON.stringify(err).includes(CHIAVE));
+  });
+});
+
+describe('Cloudflare Workers AI', () => {
+  const llm = (cfg, sequenza) => {
+    const fetch = creaFetchFinto(sequenza);
+    return { llm: creaLlmDaConfig(config({ AI_PROVIDER: 'cloudflare', AI_FALLBACK_PROVIDER: 'groq', ...cfg }), { fetch, attendi: attesaFinta() }), fetch };
+  };
+
+  test('endpoint compatibile OpenAI dell’account, token Bearer, modello Gemma e response_format json_schema', async () => {
+    const { llm: m, fetch } = llm({}, [json(RISPOSTA_TESTO)]);
+    const r = await m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE });
+    assert.equal(r.modello, 'cloudflare:@cf/google/gemma-4-26b-a4b-it');
+    const [c] = fetch.chiamate;
+    assert.equal(c.url, 'https://api.cloudflare.com/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/v1/chat/completions');
+    assert.equal(c.headers.Authorization, 'Bearer token-cloudflare-di-prova');
+    assert.equal(c.body.model, '@cf/google/gemma-4-26b-a4b-it');
+    assert.equal(c.body.response_format.type, 'json_schema');
+    const schema = c.body.response_format.json_schema.schema;
+    assert.ok(schema.required.includes('motivo') && schema.required.includes('confidenza'));
+    assert.ok(JSON.stringify(schema.properties.motivo).includes('NON_SENSATA'));
+  });
+
+  test('fallback quando il provider fallisce: Cloudflare giù (5xx) → Groq', async () => {
+    const { llm: m, fetch } = llm({ AI_MAX_RETRIES: 0 }, [errore(500), json(RISPOSTA_TESTO)]);
+    const r = await m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE });
+    assert.equal(r.modello, 'groq:qwen/qwen3.8-27b');
+    assert.deepEqual(fetch.chiamate.map((c) => new URL(c.url).hostname), ['api.cloudflare.com', 'api.groq.com']);
+    assert.deepEqual(fetch.chiamate[1].body.response_format, { type: 'json_object' });
+  });
+
+  test('fallback quando il JSON non è valido: Cloudflare risponde testo libero → Groq', async () => {
+    const { llm: m, fetch } = llm({}, [testo('Certo! Ecco la mia analisi...'), json(RISPOSTA_TESTO)]);
+    assert.equal((await m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE })).modello, 'groq:qwen/qwen3.8-27b');
+    assert.equal(fetch.chiamate.length, 2);
+  });
+
+  test('JSON Mode non rispettabile (Cloudflare): nessun nuovo tentativo, si passa a Groq', async () => {
+    const { llm: m, fetch } = llm({}, [errore(500, { corpo: `{"errors":[{"message":"JSON Mode couldn't be met"}]}` }), json(RISPOSTA_TESTO)]);
+    assert.equal((await m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE })).modello, 'groq:qwen/qwen3.8-27b');
+    assert.equal(fetch.chiamate.length, 2);
+  });
+
+  test('tutti i livelli esterni falliscono: errore (il worker registra DA_REVISIONARE), il token non compare', async () => {
+    const { llm: m } = llm({ AI_MAX_RETRIES: 0 }, [errore(401, { corpo: 'token token-cloudflare-di-prova non valido' }), testo('{')]);
+    const err = await rifiuta(m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE }));
+    assert.ok(err instanceof ErroreProvider);
+    assert.equal(err.modello, 'cloudflare:@cf/google/gemma-4-26b-a4b-it → groq:qwen/qwen3.8-27b');
+    assert.ok(!err.message.includes('token-cloudflare-di-prova'), err.message);
   });
 });
 
@@ -232,6 +294,14 @@ describe('Registro dei provider', () => {
     assert.equal(p.moderazione.modello, 'regole-moderazione-it@1');
     assert.equal(p.llm.modello, 'mistral:mistral-small-latest');
     assert.equal(creaProvider(config({ AI_FALLBACK_PROVIDER: 'groq' })).llm.modello, 'mistral:mistral-small-latest → groq:qwen/qwen3.8-27b');
+  });
+  test('cloudflare con fallback groq; senza fallback esterno un solo livello', () => {
+    assert.equal(
+      creaProvider(config({ AI_PROVIDER: 'cloudflare', AI_FALLBACK_PROVIDER: 'groq' })).llm.modello,
+      'cloudflare:@cf/google/gemma-4-26b-a4b-it → groq:qwen/qwen3.8-27b',
+    );
+    assert.equal(creaProvider(config({ AI_PROVIDER: 'cloudflare', AI_FALLBACK_PROVIDER: 'regole' })).llm.modello, 'cloudflare:@cf/google/gemma-4-26b-a4b-it');
+    assert.equal(creaProvider(config({ AI_PROVIDER: 'mistral', AI_FALLBACK_PROVIDER: 'cloudflare' })).llm.modello, 'mistral:mistral-small-latest → cloudflare:@cf/google/gemma-4-26b-a4b-it');
   });
   test('nessuno: nessuna analisi', () => {
     assert.deepEqual(creaProvider(config({ AI_PROVIDER: 'nessuno' })), { moderazione: null, classificazione: null, visione: null, autenticita: null, llm: null });

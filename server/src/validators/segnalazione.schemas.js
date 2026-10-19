@@ -64,12 +64,20 @@ export const filtriModerazione = z.object({
   quartiere: id.optional(),
   q: testoOpzionale(100),
   ordina: z.enum(['recenti', 'meno_recenti', 'sostegni']).default('meno_recenti'),
+  // nascoste_ia: nascoste dalla moderazione automatica, da esaminare; da_revisionare: analisi IA da verificare.
+  vista: z.enum(['nascoste_ia', 'da_revisionare']).optional(),
   ...paginazione,
   perPagina: z.coerce.number().int().min(1).max(50).default(20),
 });
 
 export const motivazioneModerazione = z.object({
-  motivazione: z.string().trim().min(5, 'Indica il motivo (almeno 5 caratteri).').max(500, 'Il motivo può avere al massimo 500 caratteri.'),
+  motivazione: z
+    .string()
+    .trim()
+    .min(5, 'Indica il motivo (almeno 5 caratteri).')
+    .max(500, 'Il motivo può avere al massimo 500 caratteri.')
+    // Il prefisso distingue le segnalazioni nascoste dalla moderazione automatica.
+    .refine((m) => !/^AUTO_IA:/i.test(m), 'Il motivo non può iniziare con "AUTO_IA:".'),
 });
 
 export const cambioStato = z

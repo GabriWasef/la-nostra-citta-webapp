@@ -13,6 +13,7 @@ moderazioneRouter.get('/segnalazioni', validate({ query: s.filtriModerazione }),
 moderazioneRouter.patch('/segnalazioni/:id/stato', validate({ params: paramsId, body: s.cambioStato }), c.cambiaStato);
 moderazioneRouter.post('/segnalazioni/:id/nascondi', validate({ params: paramsId, body: s.motivazioneModerazione }), c.nascondi);
 moderazioneRouter.post('/segnalazioni/:id/mostra', validate({ params: paramsId }), c.mostra);
+moderazioneRouter.post('/segnalazioni/:id/conferma-nascosta', validate({ params: paramsId }), c.confermaNascosta);
 moderazioneRouter.delete('/segnalazioni/:id', validate({ params: paramsId, body: s.motivazioneModerazione }), c.elimina);
 moderazioneRouter.put('/segnalazioni/:id/categorie', validate({ params: paramsId, body: s.categorieSegnalazione }), c.impostaCategorie);
 moderazioneRouter.get('/segnalazioni/:id/analisi', validate({ params: paramsId }), c.analisi);
