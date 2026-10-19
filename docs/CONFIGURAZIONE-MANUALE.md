@@ -10,6 +10,10 @@ Il documento contiene solo nomi di variabili, comandi e procedure, mai valori re
 La guida tecnica passo per passo del deploy è [`DEPLOY-VERCEL.md`](../DEPLOY-VERCEL.md); i dettagli su modelli, costi e
 limiti sono in [`AI-PROVIDERS.md`](AI-PROVIDERS.md).
 
+> **IA con Cloudflare, Groq e moderazione automatica (dal 19/10/2026):** la configurazione aggiornata dei fornitori,
+> delle variabili e della migrazione 014 è in [`CONFIGURAZIONE-IA.md`](CONFIGURAZIONE-IA.md). Su Vercel le variabili
+> segrete ora si creano con **Type: Secret** (la casella "Sensitive" non esiste più).
+
 ## 0. Prima di iniziare
 
 **Account necessari.**

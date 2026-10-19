@@ -29,13 +29,13 @@ Tempo indicativo: **1–2 ore** la prima volta (30 minuti per gli account e le c
 
 ## 2. Chiavi e variabili
 
-Su Vercel: *Project → Settings → Environment Variables → Add*. Le righe con **Sensitive = sì** vanno create con la
-casella **Sensitive** attiva: il valore poi non si può più leggere dal pannello, solo sostituire. Vercel ammette le
-variabili Sensitive solo negli ambienti Production e Preview.
+Su Vercel: progetto → **Environment Variables**. Le righe con **Secret = sì** vanno create con **Type: Secret**: il
+valore poi non si può più leggere dal pannello, solo sostituire. Le altre vanno come **Config**. Procedura dettagliata e
+fonti: [`CONFIGURAZIONE-IA.md`](CONFIGURAZIONE-IA.md), §7.
 
 Legenda ambienti: **Pr** = Preview, **P** = Production, **L** = `.env` locale.
 
-| Variabile | Valore di esempio | Dove si ottiene | Ambienti | Sensitive |
+| Variabile | Valore di esempio | Dove si ottiene | Ambienti | Secret |
 |---|---|---|---|---|
 | `AI_PROVIDER` | `cloudflare` | scelta del progetto | Pr, P (in L di solito `regole`) | no |
 | `AI_FALLBACK_PROVIDER` | `groq` | scelta del progetto | Pr, P | no |
@@ -63,8 +63,8 @@ Valori letti nelle console (da compilare):
 
 | Fornitore | Valore | Letto dove | Data |
 |---|---|---|---|
-| Cloudflare, limite gratuito giornaliero (neuron) | ______ | ______ | ______ |
-| Cloudflare, costo in neuron per milione di token del modello | ______ | ______ | ______ |
+| Cloudflare, limite gratuito giornaliero (neuron) | 10.000, azzerati alle 00:00 UTC (documentazione; conferma in console: ______) | pagina Pricing di Workers AI | 19/10/2026 |
+| Cloudflare, neuron per milione di token di Gemma 4 26B | 9.091 in input, 27.273 in output (documentazione) | pagina Pricing di Workers AI | 19/10/2026 |
 | Groq `qwen/qwen3.8-27b`, richieste al minuto / al giorno | ______ / ______ | ______ | ______ |
 | Groq `qwen/qwen3.8-27b`, token al minuto / al giorno | ______ / ______ | ______ | ______ |
 
@@ -90,7 +90,7 @@ i **token** (campo `usage` della risposta), non i neuron: la conversione si legg
    `database/migrations/014_moderazione_ia.sql`. Senza la migrazione il server rifiuta il database ("migrazioni da
    applicare") e il sito non funziona.
 3. **Verifica preliminare delle chiavi** con i comandi del §4: se non rispondono come atteso, non andare avanti.
-4. **Variabili su Vercel, ambiente Preview**: tutte quelle della tabella del §2 marcate Pr (le chiavi come Sensitive).
+4. **Variabili su Vercel, ambiente Preview**: tutte quelle della tabella del §2 marcate Pr (le chiavi come Secret).
 5. **Redeploy dell'anteprima.** Le modifiche alle variabili **non valgono per i deploy già esistenti**: valgono solo
    per i deploy creati dopo. In *Deployments* apri l'ultimo deploy di anteprima del branch `feat/moderazione-ia` →
    menu *⋯* → *Redeploy*. In alternativa fai un nuovo push sul branch.
@@ -288,8 +288,8 @@ Production* (instant rollback). La migrazione 014 è compatibile con il codice p
 | `/ai/v1/chat/completions` di Cloudflare accetta immagini come parti `image_url` con Gemma 4 | **da verificare**: la pagina del modello indica "Vision: Yes", ma la documentazione dell'endpoint compatibile OpenAI non parla di immagini | §4.2. Documentazione: developers.cloudflare.com → Workers AI → *Models* → `gemma-4-26b-a4b-it` e *Configuration → OpenAI compatible API endpoints*. Se non le accetta, l'alternativa è `/ai/run/{model}` | ☐ |
 | `response_format` `json_schema` rispettato dal modello | **da verificare**: la pagina *Features → JSON Mode* non elenca Gemma 4; l'errore previsto è "JSON Mode couldn't be met" | §4.3 | ☐ |
 | `qwen/qwen3.8-27b` disponibile su Groq nel piano gratuito | **da verificare**: la pagina dei modelli lo elenca tra i *Preview Models* ("intended for evaluation purposes only"); i limiti del piano gratuito non sono pubblicati | console.groq.com → *Docs → Models* e *Settings → Limits*; §4.4 | ☐ |
-| Limiti gratuiti di Cloudflare (neuron al giorno, neuron per token del modello) | **da verificare** nella console | dashboard Cloudflare → *AI* → *Workers AI* (uso e limiti del piano) e pagina *Pricing* di Workers AI. Annota nel §2 | ☐ |
-| Limiti gratuiti di Groq (RPM, RPD, TPM, TPD del modello) | **da verificare** nella console | console.groq.com → *Settings → Limits*. Annota nel §2 | ☐ |
+| Limiti gratuiti di Cloudflare (neuron al giorno, neuron per token del modello) | **verificato nella documentazione** (19/10/2026): 10.000 neuron al giorno, Gemma 4 9.091/27.273 neuron per milione di token in/out; resta da **confermare nella console** l'uso reale | dashboard Cloudflare → *AI* → *Workers AI* (uso dei neuron) | ☐ |
+| Limiti gratuiti di Groq (RPM, RPD, TPM, TPD del modello) | **da verificare** nella console: la documentazione pubblica solo il piano Developer (30 RPM, 1.000 RPD, 8.000 TPM, 200.000 TPD) | console.groq.com → *Settings → Limits*. Annota nel §2 | ☐ |
 | Il campo `usage.total_tokens` è presente nelle risposte di Cloudflare | **da verificare** | §4.1 | ☐ |
 | Dove Cloudflare tratta i dati e accordo sul trattamento (DPA) | **da verificare** (l'informativa dice che il trattamento può avvenire fuori dall'UE) | dashboard Cloudflare → *Manage Account → Configurations → Data Processing Addendum* e la documentazione Workers AI sulla privacy | ☐ |
 | Il database di Preview è diverso da quello di Production | **da verificare** | §3, passo 1 | ☐ |
@@ -305,12 +305,12 @@ I percorsi delle console sono indicativi: le interfacce dei fornitori cambiano s
 - [ ] Migrazione 014 applicata al database dell'anteprima (Diagnostica senza migrazioni in sospeso)
 - [ ] Prove curl §4.1–4.4 eseguite ed esiti annotati nel §9
 - [ ] Limiti letti nelle console e annotati nel §2; `*_MAX_*` impostati sotto quei valori
-- [ ] Variabili Preview impostate, chiavi come Sensitive, Redeploy fatto
+- [ ] Variabili Preview impostate, chiavi come Secret, Redeploy fatto
 - [ ] Scenari 1–13 del §5 superati (o differenze annotate)
 - [ ] Log Vercel controllati: nessuna chiave, nessun testo di segnalazione (§6)
 - [ ] Variabili Preview riportate ai valori normali dopo le prove
 - [ ] Migrazione 014 applicata al database di **produzione** prima del deploy
-- [ ] Variabili Production impostate (chiavi Sensitive)
+- [ ] Variabili Production impostate (chiavi Secret)
 - [ ] Pull request unita, deploy di produzione pronto, home del sito funzionante
 - [ ] Nessuna segnalazione di prova creata in produzione
 - [ ] Procedura di rollback (§8) letta da chi gestisce il sito
