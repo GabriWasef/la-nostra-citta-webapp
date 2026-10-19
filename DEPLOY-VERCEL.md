@@ -66,15 +66,18 @@ Se `db:migrate:remoto` segnala un errore sui trigger, il database non è adatto 
 | `NODE_ENV` | `production` |
 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | quelli del tuo database |
 | `DB_SSL` | `true` |
-| `DB_SSL_CA` | solo se il provider richiede il suo certificato CA (in una riga, con `\n` al posto degli a capo) |
+| `DB_SSL_CA` | solo se il provider richiede il suo certificato CA e non usi il file `server/certs/db-ca.pem` (in una riga, con `\n` al posto degli a capo) |
 | `DB_CONNECTION_LIMIT` | `3` (ogni istanza della funzione ha il suo pool: tieni basso il numero) |
 | `SESSION_SECRET` | il segreto generato |
 | `CRON_SECRET` | il secondo segreto generato (Vercel lo invia da solo al cron) |
 | `AI_WORKER_INTERVAL_MS` | `0` |
 | `GEOCODING_EMAIL` | (facoltativa) la tua e-mail di contatto per Nominatim |
-| `AI_PROVIDER` | `regole` (predefinito) oppure `mistral` per il modello linguistico (vedi sotto) |
+| `AI_PROVIDER` | `regole` (predefinito) oppure `cloudflare` o `mistral` per il modello linguistico (vedi sotto) |
 
-   **Modello linguistico (facoltativo).** Con `AI_PROVIDER=mistral` aggiungi (solo qui, mai in `vercel.json` o nel repository):
+   **Cloudflare Workers AI, Groq e moderazione automatica.** Variabili, ordine di configurazione, migrazione 014 e
+   prove sull'anteprima sono in [`docs/GUIDA-TEST-IA.md`](docs/GUIDA-TEST-IA.md).
+
+   **Modello linguistico Mistral (facoltativo).** Con `AI_PROVIDER=mistral` aggiungi (solo qui, mai in `vercel.json` o nel repository):
 
    | Variabile | Valore |
    | --- | --- |
@@ -133,7 +136,7 @@ Se un controllo fallisce, il messaggio indica cosa correggere. Dopo ogni modific
 | --- | --- |
 | "Errore interno" subito dopo il deploy; nei log di Vercel `Variabili d'ambiente non valide` | Manca una variabile obbligatoria (`SESSION_SECRET`, `DB_*`). Aggiungila e fai Redeploy |
 | `ECONNREFUSED` / `ETIMEDOUT` verso il database | Il database non accetta connessioni da internet (firewall/allowlist del provider) |
-| `self-signed certificate` / `unable to verify` | Il provider usa una CA propria: incolla il certificato in `DB_SSL_CA` |
+| `self-signed certificate` / `unable to verify` | Il provider usa una CA propria: salva il certificato in `server/certs/db-ca.pem` (è pubblico, si può mettere nel repository) oppure incollalo in `DB_SSL_CA` |
 | `Too many connections` | Riduci `DB_CONNECTION_LIMIT` o aumenta il limite di connessioni del database |
 | Il caricamento di foto/video fallisce, o l'invio di una segnalazione dà "errore imprevisto" | Mancano `BLOB_STORE_ID` + `BLOB_WEBHOOK_PUBLIC_KEY` (o `BLOB_READ_WRITE_TOKEN`), oppure hanno un prefisso diverso da `BLOB`, o lo store non è privato; guarda "Diagnostica → Archivio" |
 | Le richieste POST danno "origine non autorizzata" | `APP_ORIGIN` non coincide con l'indirizzo con cui apri il sito (es. dominio personalizzato) |

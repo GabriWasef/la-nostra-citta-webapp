@@ -1,15 +1,24 @@
 // Modello linguistico usato dal worker: provider primario con eventuale fallback.
 // Interfaccia: { modello, analizzaTesto(dati, contesto), verificaPertinenza(dati, contesto) }
 // -> { modello effettivamente usato, risposta validata }.
+import { PROVIDER_ESTERNI } from '../../config/env.js';
 import { ErroreProvider, RinvioJob } from '../errori.js';
 import { dataUriPerModello } from '../immagine.js';
 import { messaggiPertinenza, messaggiTesto } from '../prompt.js';
 import { schemaPertinenza, schemaTesto } from '../schemi.js';
 import { creaProviderOpenAI } from './openaiCompatibile.js';
 
+// Indirizzo, chiave, modello e response_format di ciascun servizio, dalle variabili d'ambiente.
+// Cloudflare Workers AI riceve lo schema della risposta (json_schema); gli altri il solo json_object.
 export const PROVIDER = {
-  mistral: { baseURL: 'https://api.mistral.ai/v1' },
-  groq: { baseURL: 'https://api.groq.com/openai/v1' },
+  mistral: (cfg) => ({ baseURL: 'https://api.mistral.ai/v1', apiKey: cfg.MISTRAL_API_KEY, modello: cfg.MISTRAL_MODEL }),
+  cloudflare: (cfg) => ({
+    baseURL: `https://api.cloudflare.com/client/v4/accounts/${cfg.CLOUDFLARE_ACCOUNT_ID}/ai/v1`,
+    apiKey: cfg.CLOUDFLARE_API_TOKEN,
+    modello: cfg.CLOUDFLARE_MODEL,
+    formato: 'json_schema',
+  }),
+  groq: (cfg) => ({ baseURL: 'https://api.groq.com/openai/v1', apiKey: cfg.GROQ_API_KEY, modello: cfg.GROQ_MODEL }),
 };
 
 // Se tutti i provider hanno raggiunto il limite senza indicare quando riprovare.
@@ -66,25 +75,15 @@ export function creaLlm(catena) {
 
 /**
  * Costruisce il modello linguistico dalla configurazione (null se AI_PROVIDER non è un provider esterno).
- * Con AI_FALLBACK_PROVIDER=regole o nessuno non c'è un secondo servizio: restano le analisi a regole
- * fatte nella richiesta, e il job viene ritentato più tardi.
+ * Livelli: AI_PROVIDER (mistral o cloudflare), poi AI_FALLBACK_PROVIDER se è un servizio (groq o cloudflare),
+ * poi le regole: le analisi a regole fatte nella richiesta restano, e il job viene ritentato più tardi.
  * @param {object} cfg variabili d'ambiente validate (config/env.js)
  * @param {{fetch?: typeof fetch, attendi?: Function, limitatori?: Record<string, object>}} [dipendenze]
  */
 export function creaLlmDaConfig(cfg, { fetch, attendi, limitatori = {} } = {}) {
-  if (cfg.AI_PROVIDER !== 'mistral') return null;
+  if (!PROVIDER_ESTERNI.includes(cfg.AI_PROVIDER)) return null;
   const comune = { timeoutMs: cfg.AI_TIMEOUT_MS, maxRetries: cfg.AI_MAX_RETRIES, ...(fetch && { fetch }), ...(attendi && { attendi }) };
-  const catena = [
-    creaProviderOpenAI({
-      nome: 'mistral', ...PROVIDER.mistral, apiKey: cfg.MISTRAL_API_KEY, modello: cfg.MISTRAL_MODEL, limitatore: limitatori.mistral, ...comune,
-    }),
-  ];
-  if (cfg.AI_FALLBACK_PROVIDER === 'groq') {
-    catena.push(
-      creaProviderOpenAI({
-        nome: 'groq', ...PROVIDER.groq, apiKey: cfg.GROQ_API_KEY, modello: cfg.GROQ_MODEL, limitatore: limitatori.groq, ...comune,
-      }),
-    );
-  }
-  return creaLlm(catena);
+  const nomi = [cfg.AI_PROVIDER];
+  if (PROVIDER[cfg.AI_FALLBACK_PROVIDER] && cfg.AI_FALLBACK_PROVIDER !== cfg.AI_PROVIDER) nomi.push(cfg.AI_FALLBACK_PROVIDER);
+  return creaLlm(nomi.map((nome) => creaProviderOpenAI({ nome, ...PROVIDER[nome](cfg), limitatore: limitatori[nome], ...comune })));
 }

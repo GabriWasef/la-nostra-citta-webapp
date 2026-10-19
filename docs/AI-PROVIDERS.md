@@ -6,11 +6,20 @@ Dove una pagina ufficiale non riporta un valore è scritto "non documentato". Do
 secondaria, o da un calcolo, è indicato. I fornitori cambiano prezzi e limiti spesso: la procedura di aggiornamento
 è al §8.
 
+> **Aggiornamento del 19/10/2026.** Fornitore primario: **Cloudflare Workers AI** (`AI_PROVIDER=cloudflare`, modello
+> `@cf/google/gemma-4-26b-a4b-it`), poi **Groq** (`AI_FALLBACK_PROVIDER=groq`), poi le regole. Mistral resta
+> selezionabile. Gemini resta escluso. Quote giornaliere nella tabella `ai_quota` (§6), moderazione automatica al §1.
+> Prezzi e limiti di Cloudflare **non** sono riportati qui: vanno letti nella console (vedi
+> [`GUIDA-TEST-IA.md`](GUIDA-TEST-IA.md), §9). I valori di Mistral e Groq sotto sono quelli verificati il 14/10/2026.
+
 ## 1. Cosa fa l'IA nel progetto
 
-L'IA aiuta il comitato a esaminare le segnalazioni, ma non decide nulla. Ogni analisi produce un esito suggerito
-(`OK`, `DA_REVISIONARE`, `BLOCCATO`) salvato in `analisi_ia`. Lo stato, la visibilità e le categorie di una
-segnalazione li cambiano solo i moderatori.
+L'IA aiuta il comitato a esaminare le segnalazioni. Ogni analisi produce un esito suggerito (`OK`, `DA_REVISIONARE`,
+`BLOCCATO`) salvato in `analisi_ia`. Lo stato e le categorie di una segnalazione li cambiano solo i moderatori.
+Unica eccezione, l'**auto-nascondi**: se la moderazione del testo fatta dal modello ha esito `BLOCCATO` (motivo grave,
+oppure spam, testo privo di senso o non pertinente con confidenza ≥ `AI_SOGLIA_AUTO_NASCONDI`) e
+`AI_AUTO_NASCONDI=true`, il worker nasconde la segnalazione (motivazione `AUTO_IA: <motivo>`). Il comitato la ripristina
+o conferma dal pannello di moderazione. Regole e limiti: [`piano-ia-reale.md`](piano-ia-reale.md), §7.
 
 L'invio di una segnalazione non dipende mai da un servizio esterno. Nella richiesta girano solo controlli a regole:
 un filtro sul testo, che risponde 422 per minacce e linguaggio d'odio, le categorie suggerite per parole chiave e la
@@ -32,7 +41,22 @@ nessun modello può accertarlo.
 
 ## 2. Modelli scelti e perché
 
-### Mistral AI, fornitore principale
+### Cloudflare Workers AI, fornitore principale (dal 19/10/2026)
+
+Con `AI_PROVIDER=cloudflare` il worker usa il modello in `CLOUDFLARE_MODEL` (predefinito
+`@cf/google/gemma-4-26b-a4b-it`) attraverso l'endpoint compatibile con OpenAI
+`https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1`, con lo stesso adapter usato per gli altri
+fornitori. Si autentica con `CLOUDFLARE_API_TOKEN` (intestazione `Authorization: Bearer`). A Cloudflare il progetto
+chiede `response_format` di tipo `json_schema`, con lo schema Zod della risposta convertito in JSON Schema. Se il modello
+non riesce a rispettarlo, Cloudflare risponde con l'errore "JSON Mode couldn't be met" e si passa al livello successivo.
+
+Verificato nella documentazione ufficiale il 19/10/2026: l'indirizzo dell'endpoint, l'autenticazione Bearer e il fatto
+che la pagina del modello indichi il supporto alla visione. **Non verificato:** che `/ai/v1/chat/completions` accetti le
+immagini come parti `image_url` con Gemma 4 (in caso contrario si usa `/ai/run/{model}`), che `json_schema` sia
+rispettato da questo modello (la pagina JSON Mode non lo elenca) e i limiti gratuiti. Le prove sono nella
+[guida di test](GUIDA-TEST-IA.md), §4 e §9.
+
+### Mistral AI, fornitore alternativo
 
 Con `AI_PROVIDER=mistral` il worker usa il modello indicato in `MISTRAL_MODEL`, per default `mistral-small-latest`.
 La documentazione ufficiale sulla visione usa proprio questo alias per gli esempi con immagini. L'alias punta
@@ -55,7 +79,10 @@ Retention) è disponibile solo con il pagamento a consumo.
 
 ### Groq, fornitore di riserva (facoltativo)
 
-Con `AI_FALLBACK_PROVIDER=groq`, quando Mistral non risponde dopo i tentativi o ha esaurito il limite, il worker
+Al 19/10/2026 `qwen/qwen3.8-27b` compare nella pagina dei modelli di Groq tra i **Preview Models** ("intended for
+evaluation purposes only"); i limiti del piano gratuito non sono pubblicati. Va ricontrollato prima del rilascio.
+
+Con `AI_FALLBACK_PROVIDER=groq`, quando il fornitore principale non risponde dopo i tentativi o ha esaurito il limite, il worker
 prova il modello in `GROQ_MODEL`, per default `qwen/qwen3.8-27b`. È l'unico modello con visione elencato nella pagina
 "Images and Vision" di Groq. Il modello indicato all'inizio del progetto,
 `meta-llama/llama-4-scout-17b-16e-instruct`, è stato spento il 17/07/2026 per i piani free e developer.
@@ -180,7 +207,10 @@ restare dentro i tempi di Vercel. Sono tutti variabili d'ambiente; i valori pred
 
 ## 6. Ogni quanto si possono fare le richieste
 
-**Le finestre.** I limiti del progetto si contano nella tabella `limite_richieste` del database, così tutte le istanze
+**Le finestre.** I limiti al minuto si contano nella tabella `limite_richieste`; richieste e token del giorno nella
+tabella `ai_quota` (una riga per fornitore e giorno UTC, aggiornata con `INSERT ... ON DUPLICATE KEY UPDATE`). I token
+sono quelli del campo `usage.total_tokens` della risposta; il limite `AI_MAX_TPD` scatta quando il totale del giorno lo
+ha raggiunto, quindi può essere superato di una risposta. Così tutte le istanze
 di Vercel vedono gli stessi numeri. Il limite al minuto usa il minuto di calendario: una chiamata alle 10:20:59 e una
 alle 10:21:00 cadono in finestre diverse. Il limite al giorno usa il giorno UTC e si azzera a mezzanotte UTC, cioè
 all'1:00 o alle 2:00 in Italia secondo l'ora legale. I fornitori non documentano quando azzerano i loro limiti
@@ -222,7 +252,10 @@ al massimo 5 job. Una coda arretrata si smaltisce quindi con gli invii successiv
 SELECT tipo_analisi, stato, tentativi, disponibile_dal, ultimo_errore
   FROM job_elaborazione WHERE stato IN ('IN_CODA', 'ERRORE') ORDER BY id_job DESC LIMIT 50;
 
--- Contatori del giorno per fornitore (ai:<fornitore>:day:<data>)
+-- Richieste e token del giorno per fornitore
+SELECT provider, giorno, richieste, token FROM ai_quota ORDER BY giorno DESC, provider;
+
+-- Contatori del minuto (ai:<fornitore>:min:<minuto>)
 SELECT chiave, conteggio, scadenza FROM limite_richieste WHERE chiave LIKE 'ai:%' ORDER BY chiave;
 
 -- Analisi non riuscite perché il fornitore non rispondeva
@@ -234,7 +267,7 @@ SELECT modello, COUNT(*) FROM analisi_ia WHERE modello LIKE 'mistral:%' OR model
 ```
 
 Il segnale che un limite è stato raggiunto è un job `IN_CODA` con `disponibile_dal` nel futuro e `ultimo_errore` che
-inizia con "Limite di richieste raggiunto". Un contatore `ai:<fornitore>:day:...` uguale a `AI_MAX_RPD` dice lo stesso.
+inizia con "Limite di richieste raggiunto". Una riga di `ai_quota` con `richieste` uguale a `AI_MAX_RPD` (o `token` oltre `AI_MAX_TPD`) dice lo stesso.
 Righe `groq:...` in `analisi_ia` indicano che è intervenuto il fornitore di riserva. Nel pannello di moderazione lo
 stesso si vede nel riepilogo ("analisi ancora in corso", "servizio di analisi non disponibile").
 
@@ -277,8 +310,14 @@ in `server/src/ai/providers/index.js`: il suo indirizzo e un nome.
 
 | Variabile | Predefinito | Note |
 |---|---|---|
-| `AI_PROVIDER` | `regole` | `regole` \| `mistral` \| `nessuno` |
-| `AI_FALLBACK_PROVIDER` | `regole` | `groq` \| `regole` \| `nessuno`; con `regole` o `nessuno` non c'è un secondo servizio e i job si ritentano più tardi |
+| `AI_PROVIDER` | `regole` | `regole` \| `cloudflare` \| `mistral` \| `nessuno` |
+| `AI_FALLBACK_PROVIDER` | `regole` | `groq` \| `cloudflare` \| `regole` \| `nessuno`; diverso da `AI_PROVIDER`; con `regole` o `nessuno` non c'è un secondo servizio |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | — | obbligatorie se Cloudflare è primario o di riserva |
+| `CLOUDFLARE_MODEL` | `@cf/google/gemma-4-26b-a4b-it` | |
+| `AI_MAX_TPD` | `100000` | token al giorno per fornitore; varianti `CLOUDFLARE_MAX_TPD`, `GROQ_MAX_TPD`, `MISTRAL_MAX_TPD` |
+| `CLOUDFLARE_MAX_RPM`, `CLOUDFLARE_MAX_RPD` | — | come le varianti per Mistral e Groq |
+| `AI_AUTO_NASCONDI` | `true` | `false` = nessun nascondimento automatico, solo suggerimenti |
+| `AI_SOGLIA_AUTO_NASCONDI` | `0.9` | confidenza minima per spam, testo privo di senso o non pertinente |
 | `MISTRAL_API_KEY` | — | obbligatoria con `AI_PROVIDER=mistral` |
 | `MISTRAL_MODEL` | `mistral-small-latest` | |
 | `GROQ_API_KEY` | — | obbligatoria con `AI_FALLBACK_PROVIDER=groq` |

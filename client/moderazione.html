@@ -19,6 +19,18 @@
         <h1>Moderazione</h1>
         <p>Verifica le segnalazioni in arrivo, controlla allegati e analisi automatiche, approva o rifiuta e aggiorna lo stato di avanzamento.</p>
       </div>
+      <div id="messaggio-ia" aria-live="polite"></div>
+      <section class="panel stack sezione-ia" aria-labelledby="t-nascoste-ia">
+        <h2 id="t-nascoste-ia">Nascoste automaticamente</h2>
+        <p class="small muted">La moderazione automatica le ha nascoste dal sito. Leggi la spiegazione del modello, poi ripristinale o conferma che restano nascoste.</p>
+        <div id="nascoste-ia" aria-live="polite"></div>
+      </section>
+      <section class="panel stack sezione-ia" aria-labelledby="t-da-revisionare">
+        <h2 id="t-da-revisionare">Da revisionare</h2>
+        <p class="small muted">Analisi automatiche con dubbi o incongruenze, non ancora esaminate dal comitato.</p>
+        <div id="da-revisionare" aria-live="polite"></div>
+      </section>
+      <h2>Tutte le segnalazioni</h2>
       <form class="filtri" id="filtri" role="search">
         <div class="field field-ricerca"><label for="q">Cerca</label><input type="search" id="q" name="q" maxlength="100"></div>
         <div class="field"><label for="stato">Stato</label><select id="stato" name="stato"></select></div>

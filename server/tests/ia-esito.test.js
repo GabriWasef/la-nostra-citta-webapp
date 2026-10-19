@@ -26,8 +26,9 @@ describe('Regole di esito: moderazione del testo', () => {
     [true, 'nessuna', 'OK', 'OK'],
     [true, 'bassa', 'OK', 'DA_REVISIONARE'],
     [false, 'bassa', 'DA_REVISIONARE', 'DA_REVISIONARE'],
-    [false, 'alta', 'BLOCCATO', 'BLOCCATO'],
-    [false, 'alta', 'DA_REVISIONARE', 'BLOCCATO'],
+    // Senza un motivo dell'elenco chiuso la gravità alta non basta per bloccare: decide il comitato.
+    [false, 'alta', 'BLOCCATO', 'DA_REVISIONARE'],
+    [false, 'alta', 'DA_REVISIONARE', 'DA_REVISIONARE'],
     // Il modello chiede di bloccare senza gravità alta: resta un dubbio, non un blocco.
     [false, 'bassa', 'BLOCCATO', 'DA_REVISIONARE'],
     [true, 'nessuna', 'BLOCCATO', 'DA_REVISIONARE'],
@@ -35,11 +36,37 @@ describe('Regole di esito: moderazione del testo', () => {
   ];
   for (const [accettabile, gravita, suggerito, atteso] of casi) {
     test(`accettabile=${accettabile}, gravità ${gravita}, suggerito ${suggerito} → ${atteso}`, () => {
-      const r = esitoModerazione({ testo: { accettabile, gravita, motivi: [] }, esito_suggerito: suggerito });
+      const r = esitoModerazione({ testo: { accettabile, gravita, motivi: [] }, motivo: null, confidenza: 0.9, esito_suggerito: suggerito });
       assert.equal(r.esito, atteso);
       assert.equal(r.motivi.length === 0, atteso === 'OK');
     });
   }
+});
+
+describe('Regole di esito: motivo della moderazione automatica', () => {
+  const r = (motivo, confidenza, opzioni) =>
+    esitoModerazione({ testo: { accettabile: motivo === null, gravita: 'nessuna', motivi: [] }, motivo, confidenza, esito_suggerito: 'OK' }, opzioni);
+
+  for (const motivo of ['MINACCIA', 'ODIO', 'INSULTO_GRAVE', 'CONTENUTO_SESSUALE']) {
+    test(`${motivo} → BLOCCATO anche con confidenza bassa`, () => {
+      assert.deepEqual(r(motivo, 0.3), { esito: 'BLOCCATO', motivi: [motivo] });
+    });
+  }
+  for (const motivo of ['SPAM_PUBBLICITA', 'NON_SENSATA', 'NON_PERTINENTE']) {
+    test(`${motivo}: BLOCCATO da 0,9 in su, altrimenti DA_REVISIONARE`, () => {
+      assert.equal(r(motivo, 0.95).esito, 'BLOCCATO');
+      assert.equal(r(motivo, 0.9).esito, 'BLOCCATO');
+      assert.deepEqual(r(motivo, 0.6), { esito: 'DA_REVISIONARE', motivi: [motivo, 'CONFIDENZA_BASSA'] });
+    });
+  }
+  test('la soglia è configurabile (AI_SOGLIA_AUTO_NASCONDI)', () => {
+    assert.equal(r('NON_SENSATA', 0.8, { soglia: 0.75 }).esito, 'BLOCCATO');
+    assert.equal(r('NON_SENSATA', 0.95, { soglia: 0.99 }).esito, 'DA_REVISIONARE');
+  });
+  test('DUBBIO → DA_REVISIONARE, a qualunque confidenza', () => {
+    for (const c of [0.1, 0.99]) assert.deepEqual(r('DUBBIO', c), { esito: 'DA_REVISIONARE', motivi: ['DUBBIO'] });
+  });
+  test('nessun motivo e testo accettabile → OK', () => assert.deepEqual(r(null, 0.95), { esito: 'OK', motivi: [] }));
 });
 
 describe('Regole di esito: pertinenza delle immagini', () => {

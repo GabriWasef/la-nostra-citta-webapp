@@ -27,8 +27,22 @@ const REGOLE = [
   'confidenza è un numero tra 0 e 1. motivi e spiegazione in italiano, brevi.',
 ];
 
+// Motivo della moderazione: elenco chiuso (ai/schemi.js), con la confidenza del giudizio.
+const REGOLE_MOTIVO = [
+  'motivo: null se il testo è una segnalazione accettabile e pertinente; altrimenti esattamente uno di:',
+  '  "MINACCIA" (minacce a persone o cose), "ODIO" (incitamento all’odio o discriminazione), ' +
+    '"INSULTO_GRAVE" (insulti pesanti rivolti a persone), "CONTENUTO_SESSUALE" (contenuti sessuali espliciti);',
+  '  "SPAM_PUBBLICITA" (pubblicità o spam), "NON_SENSATA" (caratteri casuali, prove, testo privo di senso), ' +
+    '"NON_PERTINENTE" (argomento estraneo alla città o al servizio);',
+  '  "DUBBIO" per ogni altro problema o se non sei sicuro.',
+  'confidenza: quanto sei sicuro del motivo indicato (o, se motivo è null, che il testo sia accettabile), tra 0 e 1. ' +
+    'Una volgarità o una critica, anche dura, all’amministrazione non è un INSULTO_GRAVE.',
+];
+
 const SCHEMA_TESTO = `{
   "testo": { "accettabile": boolean, "gravita": "nessuna" | "bassa" | "alta", "motivi": string[] },
+  "motivo": null | "MINACCIA" | "ODIO" | "INSULTO_GRAVE" | "CONTENUTO_SESSUALE" | "SPAM_PUBBLICITA" | "NON_SENSATA" | "NON_PERTINENTE" | "DUBBIO",
+  "confidenza": number,
   "categorie_suggerite": [ { "nome": string, "confidenza": number } ],
   "esito_suggerito": "OK" | "DA_REVISIONARE" | "BLOCCATO",
   "spiegazione": string
@@ -61,7 +75,7 @@ export function messaggiTesto({ testo, categorie }) {
     {
       role: 'user',
       content:
-        `Regole:\n${elenco(REGOLE)}\n- Al massimo 3 categorie_suggerite, dalla più pertinente.\n\n` +
+        `Regole:\n${elenco([...REGOLE, ...REGOLE_MOTIVO])}\n- Al massimo 3 categorie_suggerite, dalla più pertinente.\n\n` +
         `categorie_ammesse: ${JSON.stringify(categorie)}\n\n${delimita(testo)}\n\n` +
         `Schema della risposta:\n${SCHEMA_TESTO}`,
     },

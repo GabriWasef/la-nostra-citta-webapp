@@ -54,6 +54,15 @@ export async function revisionaPendenti(idSegnalazione, tipoAnalisi, esitoRevisi
   );
 }
 
+/** Chiude le revisioni pendenti delle analisi BLOCCATO di un tipo (decisione su un nascondimento automatico). */
+export async function revisionaBloccate(idSegnalazione, tipoAnalisi, esitoRevisione, idRevisore, db = pool) {
+  await db.execute(
+    `UPDATE analisi_ia SET esito_revisione = ?, id_revisore = ?, data_revisione = CURRENT_TIMESTAMP
+      WHERE id_segnalazione = ? AND tipo_analisi = ? AND esito = 'BLOCCATO' AND esito_revisione IS NULL`,
+    [esitoRevisione, idRevisore, idSegnalazione, tipoAnalisi],
+  );
+}
+
 // ---- Coda di elaborazione asincrona (job_elaborazione)
 
 export async function accoda({ tipo_analisi, id_segnalazione, id_allegato = null }, db = pool) {
@@ -149,4 +158,36 @@ export async function ultimaPerAllegato(idAllegato, tipoAnalisi, db = pool) {
     [idAllegato, tipoAnalisi],
   );
   return righe[0] ?? null;
+}
+
+/** Raggruppa per segnalazione le righe che hanno il campo rif (id della segnalazione). */
+function perSegnalazione(ids, righe) {
+  const mappa = new Map(ids.map((id) => [id, []]));
+  for (const { rif, ...r } of righe) mappa.get(rif)?.push(r);
+  return mappa;
+}
+
+/** Analisi di più segnalazioni e dei loro allegati (elenchi del comitato). @returns {Promise<Map<number, object[]>>} */
+export async function listPerSegnalazioni(ids, db = pool) {
+  if (!ids.length) return new Map();
+  const [righe] = await db.query(
+    `SELECT ai.id_analisi, ai.tipo_analisi, ai.modello, ai.risultato, ai.punteggio, ai.esito,
+            ai.data_analisi, ai.id_allegato, ai.esito_revisione, COALESCE(ai.id_segnalazione, a.id_segnalazione) AS rif
+       FROM analisi_ia ai
+       LEFT JOIN allegato a ON a.id_allegato = ai.id_allegato
+      WHERE ai.id_segnalazione IN (?) OR a.id_segnalazione IN (?)
+      ORDER BY ai.data_analisi, ai.id_analisi`,
+    [ids, ids],
+  );
+  return perSegnalazione(ids, righe);
+}
+
+/** Stato dei job di più segnalazioni. @returns {Promise<Map<number, object[]>>} */
+export async function jobPerSegnalazioni(ids, db = pool) {
+  if (!ids.length) return new Map();
+  const [righe] = await db.query(
+    'SELECT id_job, tipo_analisi, stato, id_segnalazione AS rif FROM job_elaborazione WHERE id_segnalazione IN (?) ORDER BY id_job',
+    [ids],
+  );
+  return perSegnalazione(ids, righe);
 }

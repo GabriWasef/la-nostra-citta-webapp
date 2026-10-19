@@ -1,7 +1,13 @@
 // Worker della coda job_elaborazione: esegue le analisi lente fuori dalla
 // richiesta HTTP. Può girare dentro il server (AI_WORKER_INTERVAL_MS > 0)
 // o come processo separato (npm run worker), anche in più copie.
-// Il worker registra analisi e suggerimenti: non cambia mai lo stato di una segnalazione.
+// Il worker registra analisi e suggerimenti e non cambia mai lo stato di una segnalazione.
+// Unica azione automatica (auto-nascondi): se la moderazione del testo fatta dal modello ha esito BLOCCATO
+// (motivo grave, oppure spam, testo privo di senso o non pertinente con confidenza >= AI_SOGLIA_AUTO_NASCONDI)
+// e AI_AUTO_NASCONDI=true, la segnalazione viene nascosta con nascondi(), motivazione "AUTO_IA: <motivo>",
+// e l'azione va nel registro delle operazioni come automatica. Limiti: vale solo per il testo (mai per le
+// immagini né per i sospetti di foto generate), mai quando i provider falliscono (le analisi restano
+// DA_REVISIONARE), è reversibile dal comitato (Ripristina) e il cittadino vede solo "in revisione".
 import { waitUntil } from '@vercel/functions';
 import { env } from '../config/env.js';
 import { pool } from '../config/db.js';
@@ -13,6 +19,7 @@ import { storage } from '../storage/index.js';
 import { logger } from '../utils/logger.js';
 import { verificaAutenticita } from './autenticita.js';
 import { RinvioJob } from './errori.js';
+import { nascondiAutomaticamente } from '../services/segnalazione.service.js';
 import { esitoClassificazione, esitoModerazione, esitoPertinenza, punteggioGravita } from './esito.js';
 import { provider } from './index.js';
 import { DISTANZA_MASSIMA } from './phash.js';
@@ -70,11 +77,18 @@ async function analisiTesto(job, contesto, tipi) {
   );
   const righe = [];
   if (tipi.includes('MODERAZIONE_TESTO')) {
-    const { esito, motivi } = esitoModerazione(risposta);
+    const { esito, motivi } = esitoModerazione(risposta, { soglia: env.AI_SOGLIA_AUTO_NASCONDI });
     righe.push({
       tipo_analisi: 'MODERAZIONE_TESTO',
       modello,
-      risultato: { ...risposta.testo, esito_suggerito: risposta.esito_suggerito, spiegazione: risposta.spiegazione, motivi_esito: motivi },
+      risultato: {
+        ...risposta.testo,
+        motivo: risposta.motivo,
+        confidenza: risposta.confidenza,
+        esito_suggerito: risposta.esito_suggerito,
+        spiegazione: risposta.spiegazione,
+        motivi_esito: motivi,
+      },
       punteggio: punteggioGravita(risposta.testo.gravita),
       esito,
       id_segnalazione: job.id_segnalazione,
@@ -162,6 +176,21 @@ const ESECUTORI = {
   },
 };
 
+/**
+ * Auto-nascondi: solo per la moderazione del testo del modello con esito BLOCCATO e AI_AUTO_NASCONDI=true.
+ * Un errore qui non fa ripetere il job: l'analisi BLOCCATO è già salvata e resta da revisionare.
+ */
+async function moderazioneAutomatica(analisi, idAnalisi) {
+  if (!env.AI_AUTO_NASCONDI || analisi.tipo_analisi !== 'MODERAZIONE_TESTO' || analisi.esito !== 'BLOCCATO') return;
+  const { motivo, confidenza } = analisi.risultato;
+  try {
+    const nascosta = await nascondiAutomaticamente(analisi.id_segnalazione, { motivo, confidenza, modello: analisi.modello, idAnalisi });
+    if (nascosta) logger.info({ segnalazione: analisi.id_segnalazione, motivo, confidenza }, 'Segnalazione nascosta dalla moderazione automatica');
+  } catch (err) {
+    logger.error({ err, segnalazione: analisi.id_segnalazione }, 'Moderazione automatica non applicata');
+  }
+}
+
 /** Tentativi finiti per un'analisi esterna: resta traccia per il comitato, da revisionare. */
 async function registraNonRiuscita(job, err) {
   if (!TIPI_LLM.has(job.tipo_analisi)) return;
@@ -193,7 +222,10 @@ export async function elaboraProssimoJob(contesto = {}) {
     const esecutore = ESECUTORI[job.tipo_analisi];
     if (!esecutore) throw new Error(`Tipo di analisi non gestito: ${job.tipo_analisi}`);
     const risultato = await esecutore(job, contesto);
-    for (const analisi of [risultato ?? []].flat()) await analisiRepository.insert(analisi);
+    for (const analisi of [risultato ?? []].flat()) {
+      const idAnalisi = await analisiRepository.insert(analisi);
+      await moderazioneAutomatica(analisi, idAnalisi);
+    }
     await analisiRepository.completaJob(job.id_job);
   } catch (err) {
     if (err instanceof RinvioJob) {

@@ -1959,3 +1959,23 @@ td input {
 .titolo-pericolo {
   color: var(--c-danger);
 }
+
+/* ---------- Moderazione automatica (pannello del comitato) ---------- */
+.sezione-ia {
+  margin-bottom: 20px;
+}
+
+.sezione-ia h2 {
+  margin-bottom: 0;
+}
+
+.sezione-ia .analisi-lista p {
+  margin: 6px 0 0;
+}
+
+.spiegazione-ia {
+  padding: 8px 10px;
+  border-left: 3px solid var(--c-primary);
+  background: var(--c-surface);
+  border-radius: var(--radius-sm);
+}

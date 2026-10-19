@@ -1,8 +1,8 @@
-// fetch finto per le API chat completions (Mistral, Groq): nessuna rete nei test.
+// fetch finto per le API chat completions (Mistral, Cloudflare, Groq): nessuna rete nei test.
 // Ogni chiamata consuma il passo successivo della sequenza; le richieste ricevute restano in `chiamate`.
 
-/** Risposta 200 con il JSON indicato come contenuto del messaggio. */
-export const json = (oggetto) => ({ stato: 200, contenuto: JSON.stringify(oggetto) });
+/** Risposta 200 con il JSON indicato come contenuto del messaggio (token: usage.total_tokens). */
+export const json = (oggetto, { token } = {}) => ({ stato: 200, contenuto: JSON.stringify(oggetto), token });
 /** Risposta 200 con un contenuto testuale qualsiasi (per esempio JSON non valido). */
 export const testo = (contenuto) => ({ stato: 200, contenuto });
 /** Errore HTTP, con eventuale Retry-After in secondi. */
@@ -38,6 +38,7 @@ export function creaFetchFinto(sequenza) {
       id: 'cmpl-finto',
       model: chiamate.at(-1).body.model,
       choices: [{ index: 0, message: { role: 'assistant', content: passo.contenuto }, finish_reason: 'stop' }],
+      ...(passo.token !== undefined && { usage: { prompt_tokens: passo.token - 100, completion_tokens: 100, total_tokens: passo.token } }),
     });
   };
   fetchFinto.chiamate = chiamate;
@@ -47,6 +48,8 @@ export function creaFetchFinto(sequenza) {
 /** Risposte valide di esempio. */
 export const RISPOSTA_TESTO = {
   testo: { accettabile: true, gravita: 'nessuna', motivi: [] },
+  motivo: null,
+  confidenza: 0.95,
   categorie_suggerite: [{ nome: 'Manutenzione stradale', confidenza: 0.92 }],
   esito_suggerito: 'OK',
   spiegazione: 'Segnalazione civile di una buca nella strada.',

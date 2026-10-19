@@ -8,6 +8,11 @@ const booleano = z
   .enum(['true', 'false', '1', '0'])
   .transform((v) => v === 'true' || v === '1');
 
+// Provider con un modello linguistico esterno (gli altri valori di AI_PROVIDER sono regole e nessuno).
+export const PROVIDER_ESTERNI = ['mistral', 'cloudflare'];
+// Variabili obbligatorie per ciascun servizio esterno.
+const CHIAVI_PROVIDER = { mistral: ['MISTRAL_API_KEY'], cloudflare: ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'], groq: ['GROQ_API_KEY'] };
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   HOST: z.string().default('0.0.0.0'),
@@ -26,6 +31,8 @@ const schema = z.object({
   DB_SSL: booleano.default(false),
   // Certificato della CA del provider, solo se non è una CA pubblica (PEM; "\n" per andare a capo).
   DB_SSL_CA: z.string().default(''),
+  // File PEM con lo stesso certificato (percorso dalla radice del progetto): se esiste, ha la precedenza su DB_SSL_CA.
+  DB_SSL_CA_FILE: z.string().default('server/certs/db-ca.pem'),
 
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET deve avere almeno 32 caratteri'),
   SESSION_MAX_AGE_HOURS: z.coerce.number().positive().default(8),
@@ -51,24 +58,39 @@ const schema = z.object({
   GEOCODING_URL: z.url().default('https://nominatim.openstreetmap.org'),
   GEOCODING_EMAIL: z.union([z.email(), z.literal('')]).default(''),
 
-  // regole: filtri a regole inclusi nel progetto; mistral: in più un modello linguistico nel worker.
-  AI_PROVIDER: z.enum(['regole', 'mistral', 'nessuno']).default('regole'),
-  // Se il primario non risponde: groq (secondo servizio, fuori UE) oppure regole/nessuno (si ritenta più tardi).
-  AI_FALLBACK_PROVIDER: z.enum(['groq', 'regole', 'nessuno']).default('regole'),
+  // regole: filtri a regole inclusi nel progetto; mistral o cloudflare: in più un modello linguistico nel worker.
+  AI_PROVIDER: z.enum(['regole', 'mistral', 'cloudflare', 'nessuno']).default('regole'),
+  // Se il primario non risponde: groq o cloudflare (secondo servizio) oppure regole/nessuno (nessun secondo servizio).
+  AI_FALLBACK_PROVIDER: z.enum(['groq', 'cloudflare', 'regole', 'nessuno']).default('regole'),
   MISTRAL_API_KEY: z.string().default(''),
   MISTRAL_MODEL: z.string().min(1).default('mistral-small-latest'),
+  // Cloudflare Workers AI, endpoint compatibile OpenAI .../accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1
+  CLOUDFLARE_ACCOUNT_ID: z.string().regex(/^[0-9a-f]*$/i, 'contiene solo cifre esadecimali').default(''),
+  CLOUDFLARE_API_TOKEN: z.string().default(''),
+  CLOUDFLARE_MODEL: z.string().min(1).default('@cf/google/gemma-4-26b-a4b-it'),
   GROQ_API_KEY: z.string().default(''),
   GROQ_MODEL: z.string().min(1).default('qwen/qwen3.8-27b'),
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(55_000).default(15_000),
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
-  // Richieste al minuto e al giorno verso ciascun provider (0 = nessun limite). Valori comuni,
-  // sostituibili per provider (MISTRAL_MAX_RPM, GROQ_MAX_RPD, ...). Vedi docs/AI-PROVIDERS.md.
+  // Richieste al minuto, richieste al giorno e token al giorno verso ciascun provider (0 = nessun limite).
+  // Valori comuni, sostituibili per provider (CLOUDFLARE_MAX_RPD, GROQ_MAX_TPD, ...). I contatori del
+  // giorno sono nella tabella ai_quota. Vedi docs/AI-PROVIDERS.md.
   AI_MAX_RPM: z.coerce.number().int().min(0).default(20),
   AI_MAX_RPD: z.coerce.number().int().min(0).default(500),
+  AI_MAX_TPD: z.coerce.number().int().min(0).default(100_000),
   MISTRAL_MAX_RPM: z.coerce.number().int().min(0).optional(),
   MISTRAL_MAX_RPD: z.coerce.number().int().min(0).optional(),
+  MISTRAL_MAX_TPD: z.coerce.number().int().min(0).optional(),
+  CLOUDFLARE_MAX_RPM: z.coerce.number().int().min(0).optional(),
+  CLOUDFLARE_MAX_RPD: z.coerce.number().int().min(0).optional(),
+  CLOUDFLARE_MAX_TPD: z.coerce.number().int().min(0).optional(),
   GROQ_MAX_RPM: z.coerce.number().int().min(0).optional(),
   GROQ_MAX_RPD: z.coerce.number().int().min(0).optional(),
+  GROQ_MAX_TPD: z.coerce.number().int().min(0).optional(),
+  // Moderazione automatica: con esito BLOCCATO il worker nasconde la segnalazione (il comitato può ripristinarla).
+  AI_AUTO_NASCONDI: booleano.default(true),
+  // Confidenza minima per nascondere spam, testi privi di senso o non pertinenti (i motivi gravi non hanno soglia).
+  AI_SOGLIA_AUTO_NASCONDI: z.coerce.number().min(0).max(1).default(0.9),
   // Distanza oltre la quale la posizione GPS della foto è incoerente con quella della segnalazione.
   EXIF_MAX_DISTANCE_M: z.coerce.number().positive().default(100),
   AI_WORKER_INTERVAL_MS: z.coerce.number().int().min(0).default(5000),
@@ -79,11 +101,14 @@ const schema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 }).superRefine((v, ctx) => {
   // Le chiavi non hanno mai un valore predefinito: senza chiave il provider non si attiva.
-  if (v.AI_PROVIDER === 'mistral' && !v.MISTRAL_API_KEY) {
-    ctx.addIssue({ code: 'custom', path: ['MISTRAL_API_KEY'], message: 'obbligatoria con AI_PROVIDER=mistral' });
+  if (!PROVIDER_ESTERNI.includes(v.AI_PROVIDER)) return;
+  if (v.AI_FALLBACK_PROVIDER === v.AI_PROVIDER) {
+    ctx.addIssue({ code: 'custom', path: ['AI_FALLBACK_PROVIDER'], message: 'deve essere diverso da AI_PROVIDER' });
   }
-  if (v.AI_PROVIDER === 'mistral' && v.AI_FALLBACK_PROVIDER === 'groq' && !v.GROQ_API_KEY) {
-    ctx.addIssue({ code: 'custom', path: ['GROQ_API_KEY'], message: 'obbligatoria con AI_FALLBACK_PROVIDER=groq' });
+  for (const variabile of ['AI_PROVIDER', 'AI_FALLBACK_PROVIDER']) {
+    for (const chiave of CHIAVI_PROVIDER[v[variabile]] ?? []) {
+      if (!v[chiave]) ctx.addIssue({ code: 'custom', path: [chiave], message: `obbligatoria con ${variabile}=${v[variabile]}` });
+    }
   }
 });
 
@@ -95,7 +120,9 @@ function variabiliAmbiente() {
     if (host) grezze.APP_ORIGIN = `https://${host}`;
   }
   // Vercel imposta variabili vuote per le integrazioni non collegate: si trattano come assenti.
-  for (const chiave of ['STORAGE_DRIVER', 'RATE_LIMIT_STORE', 'MISTRAL_MODEL', 'GROQ_MODEL', 'MISTRAL_MAX_RPM', 'MISTRAL_MAX_RPD', 'GROQ_MAX_RPM', 'GROQ_MAX_RPD']) if (grezze[chiave] === '') delete grezze[chiave];
+  const facoltative = ['STORAGE_DRIVER', 'RATE_LIMIT_STORE', 'MISTRAL_MODEL', 'CLOUDFLARE_MODEL', 'GROQ_MODEL'];
+  for (const p of ['MISTRAL', 'CLOUDFLARE', 'GROQ']) for (const t of ['RPM', 'RPD', 'TPD']) facoltative.push(`${p}_MAX_${t}`);
+  for (const chiave of facoltative) if (grezze[chiave] === '') delete grezze[chiave];
   return grezze;
 }
 

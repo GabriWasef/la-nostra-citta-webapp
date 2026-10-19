@@ -1,5 +1,6 @@
 import { urlAllegato } from '../api.js';
 import { badgeStato, h, plurale, tempoFa } from '../dom.js';
+import { badgeEsito } from '../ia.js';
 
 export function mediaCopertina(copertina) {
   if (copertina?.tipo_media === 'IMMAGINE') {
@@ -14,7 +15,7 @@ export function cardSegnalazione(s, { mostraBadgeIa = false } = {}) {
   return h(
     'article',
     { class: 'card' },
-    h('div', { class: 'card-media' }, mediaCopertina(s.copertina), badgeStato(s.stato), s.nascosta ? h('span', { class: 'badge badge-nascosta' }, '🚫 Nascosta') : null),
+    h('div', { class: 'card-media' }, mediaCopertina(s.copertina), badgeStato(s.stato), s.nascosta ? h('span', { class: 'badge badge-nascosta' }, s.in_revisione ? '⏳ In revisione' : s.nascosta_da_ia ? '🚫 Nascosta (IA)' : '🚫 Nascosta') : null),
     h(
       'div',
       { class: 'card-body' },
@@ -22,7 +23,9 @@ export function cardSegnalazione(s, { mostraBadgeIa = false } = {}) {
       h('h3', {}, h('a', { href: `/segnalazione?id=${s.id_segnalazione}` }, s.titolo)),
       h('p', { class: 'card-estratto' }, s.descrizione),
       s.categorie?.length ? h('ul', { class: 'chips', 'aria-label': 'Categorie' }, s.categorie.map((c) => h('li', { class: 'chip' }, c.nome))) : null,
-      mostraBadgeIa && s.da_revisionare_ia ? h('span', { class: 'badge badge-ia' }, '⚠ Da revisionare (IA)') : null,
+      // Esito IA complessivo (elenchi del comitato); senza riepilogo resta il solo avviso "da revisionare".
+      mostraBadgeIa && s.ia?.esito ? badgeEsito(s.ia.esito, 'IA: ') : null,
+      mostraBadgeIa && !s.ia && s.da_revisionare_ia ? h('span', { class: 'badge badge-ia' }, '⚠ Da revisionare (IA)') : null,
       h(
         'div',
         { class: 'card-footer' },

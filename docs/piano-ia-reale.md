@@ -4,6 +4,10 @@ Stato: **scelte confermate** (tutte le opzioni consigliate del §4, S1–S7, e l
 Avanzamento: fase 1 ✅ · fase 2 ✅ · fase 3 ✅ · fase 4 ✅ · fase 5 ✅ · fase 6 ✅ · fase 7 ✅.
 Data dell'analisi: 12/10/2026, sul branch `main` (commit `5506b09`).
 
+> **Aggiornamento del 19/10/2026 (branch `feat/moderazione-ia`).** La scelta S1 è cambiata: ora esiste
+> l'**auto-nascondi** per i casi chiaramente inaccettabili, con i limiti descritti al §7. Il fornitore primario
+> consigliato è Cloudflare Workers AI (`AI_PROVIDER=cloudflare`), con Groq come livello successivo e poi le regole.
+
 ## 1. Fasi
 
 | Fase | Contenuto | Esito atteso |
@@ -116,3 +120,43 @@ controller e route, `vercel.json` (né frequenza del cron né chiavi).
 2. Valori predefiniti di `AI_MAX_RPM` e `AI_MAX_RPD`: proposta di usarli per provider (`MISTRAL_MAX_RPM`, `GROQ_MAX_RPM`, …) invece di un valore unico, perché i limiti dei due fornitori sono diversi. Va bene la denominazione per provider, mantenendo `AI_MAX_RPM`/`AI_MAX_RPD` come valore comune predefinito?
 3. Quando primario e fallback non sono disponibili (tentativi esauriti): il job va in `ERRORE` e si registra un'analisi `DA_REVISIONARE` con motivo "provider non disponibile", così il comitato lo vede nella lista. Confermi?
 4. Il pannello mostra già tutte le righe `analisi_ia` con il campo `modello`; serve anche un filtro nella coda di moderazione per tipo di analisi, o basta il badge esistente `da_revisionare_ia`?
+
+## 7. Moderazione automatica (auto-nascondi), dal 19/10/2026
+
+**Cosa fa.** Il modello restituisce, per il testo, un `motivo` da un elenco chiuso (`server/src/ai/schemi.js`) e una
+`confidenza` da 0 a 1. Le regole sono in `esitoModerazione` (`server/src/ai/esito.js`):
+
+| Motivo | Esito |
+|---|---|
+| `MINACCIA`, `ODIO`, `INSULTO_GRAVE`, `CONTENUTO_SESSUALE` (gravi) | `BLOCCATO`, a qualunque confidenza |
+| `SPAM_PUBBLICITA`, `NON_SENSATA`, `NON_PERTINENTE` | `BLOCCATO` se confidenza ≥ `AI_SOGLIA_AUTO_NASCONDI` (predefinito 0,9), altrimenti `DA_REVISIONARE` |
+| `DUBBIO` | `DA_REVISIONARE` |
+| nessun motivo (`null`) | `OK`, oppure `DA_REVISIONARE` se il modello segnala comunque problemi |
+
+Solo se l'esito della moderazione del testo è `BLOCCATO` e `AI_AUTO_NASCONDI=true` (predefinito), il worker nasconde
+la segnalazione con `nascondi()`, motivazione `AUTO_IA: <motivo>`, e registra `SEGNALAZIONE_NASCOSTA_AUTO` in
+`log_operazione` senza utente e con `automatica: true` (mai il testo). In tutti gli altri casi il worker non cambia
+nulla della segnalazione.
+
+**Comitato.** Nel pannello di moderazione la sezione "Nascoste automaticamente" mostra motivo, confidenza, data e
+spiegazione del modello, con **Ripristina** (`POST /moderazione/segnalazioni/:id/mostra`: torna visibile, il giudizio
+del modello risulta `RESPINTA`) e **Conferma nascosta** (`POST /moderazione/segnalazioni/:id/conferma-nascosta`:
+resta nascosta, giudizio `CONFERMATA`, colonna `segnalazione.data_conferma_nascondimento`, migrazione 014). Entrambe
+le azioni vanno nel registro (`SEGNALAZIONE_RIPRISTINATA`, `NASCONDIMENTO_IA_CONFERMATO`). Il cittadino vede solo
+"La segnalazione è in revisione", senza il motivo.
+
+**Limiti.**
+- Riguarda solo la moderazione del **testo** fatta dal modello. Le immagini inappropriate restano un suggerimento
+  `BLOCCATO`; i sospetti di foto generate o ritoccate non producono mai `BLOCCATO`.
+- Se tutti i provider falliscono o hanno esaurito la quota, nulla viene nascosto: restano le analisi a regole e la
+  segnalazione finisce `DA_REVISIONARE` (o in attesa, se il job è rimandato).
+- Il filtro a regole nella richiesta (422 per minacce e odio) è invariato: il modello interviene dopo, nel worker.
+- Un falso positivo nasconde una segnalazione legittima finché il comitato non la ripristina: per questo la soglia
+  per i motivi non gravi è alta e l'interruttore `AI_AUTO_NASCONDI=false` riporta al solo suggerimento senza deploy.
+- Una segnalazione già nascosta dal comitato non viene toccata.
+
+**Livelli e quote.** Livelli: `AI_PROVIDER` → `AI_FALLBACK_PROVIDER` → regole. Una risposta non JSON o fuori schema
+fa passare subito al livello successivo. Richieste e token del giorno si contano nella tabella `ai_quota`
+(migrazione 014, `INSERT ... ON DUPLICATE KEY UPDATE`), il limite al minuto resta in `limite_richieste`.
+Variabili: `AI_MAX_RPM`, `AI_MAX_RPD`, `AI_MAX_TPD` e le varianti per provider (`CLOUDFLARE_MAX_*`, `GROQ_MAX_*`,
+`MISTRAL_MAX_*`). Guida di prova: [`GUIDA-TEST-IA.md`](GUIDA-TEST-IA.md).

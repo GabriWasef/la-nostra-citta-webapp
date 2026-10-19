@@ -6,9 +6,12 @@ import * as allegatoRepository from '../repositories/allegato.repository.js';
 import * as analisiRepository from '../repositories/analisi.repository.js';
 import * as catalogoRepository from '../repositories/catalogo.repository.js';
 import * as segnalazioneRepository from '../repositories/segnalazione.repository.js';
+import { PREFISSO_AUTO_IA } from '../repositories/segnalazione.repository.js';
+import { registraOperazione } from '../repositories/sicurezza.repository.js';
 import * as sostegnoRepository from '../repositories/sostegno.repository.js';
 import { storage } from '../storage/index.js';
 import { AppError, nonTrovato } from '../utils/AppError.js';
+import { logger } from '../utils/logger.js';
 import { STATO_INIZIALE, transizioneAmmessa } from './cicloVita.js';
 import * as mediaService from './media.service.js';
 
@@ -17,6 +20,8 @@ const NON_TROVATA = () => nonTrovato('Segnalazione');
 // ---- Regole di accesso
 
 const eAutore = (s, utente) => Boolean(utente) && s.id_autore === utente.id_utente;
+/** Nascosta dalla moderazione automatica (motivazione "AUTO_IA: <motivo>"). */
+const nascostaDaIa = (s) => Boolean(s.nascosta) && String(s.motivo_nascondimento ?? '').startsWith(PREFISSO_AUTO_IA);
 
 /** Pubblica e non privata: chiunque. Altrimenti solo autore e comitato. */
 export function puoVedere(s, utente) {
@@ -40,7 +45,17 @@ function presenta(s, utente, { categorie = [], copertina = null } = {}) {
     visibilita: s.visibilita,
     quartiere: { id_quartiere: s.id_quartiere, nome: s.quartiere },
     nascosta: s.nascosta,
-    ...(moderatore || eAutore(s, utente) ? { motivo_nascondimento: s.motivo_nascondimento ?? null } : {}),
+    // Il comitato vede il motivo esatto; l'autore di una segnalazione nascosta dall'IA solo che è in revisione.
+    ...(moderatore
+      ? {
+          motivo_nascondimento: s.motivo_nascondimento ?? null,
+          nascosta_da_ia: nascostaDaIa(s),
+          data_nascondimento: s.data_nascondimento ?? null,
+          nascondimento_confermato: Boolean(s.data_conferma_nascondimento),
+        }
+      : eAutore(s, utente)
+        ? { motivo_nascondimento: nascostaDaIa(s) ? null : (s.motivo_nascondimento ?? null), in_revisione: nascostaDaIa(s) }
+        : {}),
     stato: { id_stato: s.id_stato, codice: s.codice_stato, nome: s.stato, pubblica: s.pubblica, finale: s.finale },
     autore: mostraAutore ? { nome: s.nome_autore, ...(moderatore ? { id_utente: s.id_autore } : {}) } : null,
     e_mia: eAutore(s, utente),
@@ -90,7 +105,41 @@ export async function elencoMie(filtri, utente) {
 
 export async function elencoModerazione(filtri, utente) {
   const risultato = await segnalazioneRepository.cerca(filtri, { tipo: 'moderazione' }, utente.id_utente);
-  return presentaElenco(risultato, filtri, utente);
+  const elenco = await presentaElenco(risultato, filtri, utente);
+  const ids = elenco.dati.map((s) => s.id_segnalazione);
+  const [analisi, job] = await Promise.all([analisiRepository.listPerSegnalazioni(ids), analisiRepository.jobPerSegnalazioni(ids)]);
+  for (const s of elenco.dati) s.ia = sintesiIa(analisi.get(s.id_segnalazione) ?? [], job.get(s.id_segnalazione) ?? []);
+  return elenco;
+}
+
+/**
+ * Esito IA complessivo e giudizio del modello sul testo, per gli elenchi del comitato:
+ * motivo, confidenza e spiegazione si leggono prima di decidere.
+ */
+function sintesiIa(analisi, job) {
+  const { esito, motivi } = riepilogo({ analisi, job });
+  // Ultima analisi riuscita del modello linguistico; quelle a regole hanno un modello "regole-...".
+  const ultima = (tipo, soloModello) =>
+    analisi.filter((a) => a.tipo_analisi === tipo && !a.risultato?.errore && (!soloModello || !a.modello.startsWith('regole-'))).at(-1);
+  const moderazione = ultima('MODERAZIONE_TESTO', true);
+  const classificazione = ultima('CLASSIFICAZIONE_TESTO', true) ?? ultima('CLASSIFICAZIONE_TESTO', false);
+  const r = moderazione?.risultato ?? {};
+  return {
+    esito,
+    motivi,
+    moderazione: moderazione
+      ? {
+          id_analisi: moderazione.id_analisi,
+          modello: moderazione.modello,
+          esito: moderazione.esito,
+          esito_revisione: moderazione.esito_revisione,
+          motivo: r.motivo ?? null,
+          confidenza: r.confidenza ?? null,
+          spiegazione: r.spiegazione ?? null,
+        }
+      : null,
+    categorie_suggerite: (classificazione?.risultato?.suggerite ?? []).map((c) => ({ id_categoria: c.id_categoria, nome: c.nome, affidabilita: c.affidabilita })),
+  };
 }
 
 /** Punti per la mappa: solo segnalazioni pubbliche con coordinate. */
@@ -376,12 +425,61 @@ export async function nascondi(id, motivazione) {
   return { titolo: s.titolo };
 }
 
-export async function mostra(id) {
+/**
+ * Rende di nuovo visibile una segnalazione nascosta. Se l'aveva nascosta la moderazione automatica,
+ * il giudizio del modello sul testo risulta respinto dal comitato.
+ */
+export async function mostra(id, operatore = null) {
   const s = await segnalazioneRepository.findAccesso(id);
   if (!s) throw NON_TROVATA();
   if (!s.nascosta) throw new AppError(409, 'NON_NASCOSTA', 'La segnalazione non è nascosta.');
-  await segnalazioneRepository.impostaNascosta(id, false);
-  return { titolo: s.titolo };
+  const daIa = nascostaDaIa(s);
+  await withTransaction(async (conn) => {
+    await segnalazioneRepository.impostaNascosta(id, false, null, conn);
+    if (daIa && operatore) await analisiRepository.revisionaBloccate(id, 'MODERAZIONE_TESTO', 'RESPINTA', operatore.id_utente, conn);
+  });
+  return { titolo: s.titolo, ...(daIa ? { nascosta_da_ia: true, motivo_ia: s.motivo_nascondimento.slice(PREFISSO_AUTO_IA.length) } : {}) };
+}
+
+/** Il comitato conferma una segnalazione nascosta dalla moderazione automatica: resta nascosta. */
+export async function confermaNascosta(id, moderatore) {
+  const s = await segnalazioneRepository.findAccesso(id);
+  if (!s) throw NON_TROVATA();
+  if (!nascostaDaIa(s)) throw new AppError(409, 'NON_NASCOSTA_DA_IA', 'La segnalazione non è stata nascosta dalla moderazione automatica.');
+  if (s.data_conferma_nascondimento) throw new AppError(409, 'GIA_CONFERMATA', 'La decisione è già stata confermata.');
+  await withTransaction(async (conn) => {
+    await segnalazioneRepository.confermaNascondimento(id, conn);
+    await analisiRepository.revisionaBloccate(id, 'MODERAZIONE_TESTO', 'CONFERMATA', moderatore.id_utente, conn);
+  });
+  return { motivo_ia: s.motivo_nascondimento.slice(PREFISSO_AUTO_IA.length) };
+}
+
+/**
+ * Moderazione automatica (worker): nasconde una segnalazione la cui moderazione del testo ha esito
+ * BLOCCATO, con motivazione "AUTO_IA: <motivo>", e la registra come operazione automatica (senza utente).
+ * Non registra il testo della segnalazione.
+ * @returns {Promise<boolean>} true se è stata nascosta (false se era già nascosta o non esiste più)
+ */
+export async function nascondiAutomaticamente(id, { motivo, confidenza, modello, idAnalisi }) {
+  try {
+    await nascondi(id, `${PREFISSO_AUTO_IA}${motivo}`);
+  } catch (err) {
+    // Già nascosta dal comitato o eliminata nel frattempo: non si tocca.
+    if (err instanceof AppError && (err.status === 409 || err.status === 404)) return false;
+    throw err;
+  }
+  try {
+    await registraOperazione({
+      idUtente: null,
+      azione: 'SEGNALAZIONE_NASCOSTA_AUTO',
+      entita: 'segnalazione',
+      idEntita: id,
+      dettagli: { automatica: true, motivo, confidenza, modello, id_analisi: idAnalisi },
+    });
+  } catch (err) {
+    logger.warn({ err, azione: 'SEGNALAZIONE_NASCOSTA_AUTO' }, 'Registrazione nel log non riuscita');
+  }
+  return true;
 }
 
 /** Eliminazione definitiva, con i file allegati. */
