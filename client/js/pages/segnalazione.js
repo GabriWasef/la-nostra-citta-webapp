@@ -1,6 +1,7 @@
 import { api, ApiError, urlAllegato } from '../api.js';
 import * as catalogo from '../catalogo.js';
 import { $, avviso, badgeStato, conInvio, formatData, formatDataOra, h, monta, mostraErrori, parametriUrl } from '../dom.js';
+import { badgeEsito, motivo, motivoAutoIa, percentuale } from '../ia.js';
 import { initPage, isModeratore } from '../layout.js';
 import { creaMappa, marcatore } from '../mappa.js';
 
@@ -162,37 +163,6 @@ const TIPI_ANALISI = {
   ANALISI_VIDEO: 'Analisi del video',
 };
 
-const MOTIVI = {
-  LINGUAGGIO_VOLGARE: 'linguaggio volgare',
-  INSULTI: 'insulti',
-  LINGUAGGIO_ODIO: 'linguaggio d’odio',
-  MINACCE: 'minacce',
-  SPAM: 'possibile spam',
-  TESTO_GRAVE: 'contenuto grave nel testo',
-  TESTO_NON_ACCETTABILE: 'testo non accettabile',
-  TESTO_DA_VERIFICARE: 'testo da verificare',
-  ESITO_SUGGERITO_DAL_MODELLO: 'il modello suggerisce una verifica',
-  CATEGORIE_DA_CONFERMARE: 'categorie da confermare',
-  NESSUNA_CATEGORIA_SUGGERITA: 'nessuna categoria suggerita',
-  CATEGORIA_DIVERSA_DAL_SUGGERIMENTO: 'categoria diversa da quella suggerita',
-  IMMAGINE_INAPPROPRIATA: 'immagine inappropriata',
-  IMMAGINE_NON_CORRISPONDE_AL_TESTO: 'l’immagine non corrisponde al testo',
-  IMMAGINE_NON_CORRISPONDE_ALLA_CATEGORIA: 'l’immagine non corrisponde alla categoria',
-  PERTINENZA_NON_VALUTABILE: 'pertinenza non valutabile',
-  CONFIDENZA_BASSA: 'confidenza bassa',
-  SEGNALE_AUTENTICITA: 'possibile immagine generata o ritoccata',
-  SEGNALE_MODELLO: 'il modello sospetta un’immagine generata o ritoccata',
-  EXIF_POSIZIONE_LONTANA: 'foto scattata lontano dal luogo indicato',
-  FOTO_GIA_USATA: 'foto già usata in un’altra segnalazione',
-  PROVIDER_NON_DISPONIBILE: 'servizio di analisi non disponibile',
-  ANALISI_IN_CORSO: 'analisi ancora in corso',
-  RISOLUZIONE_BASSA: 'risoluzione bassa',
-  IMMAGINE_TROPPO_SCURA: 'immagine troppo scura',
-  IMMAGINE_SOVRAESPOSTA: 'immagine sovraesposta',
-};
-const motivo = (m) => MOTIVI[m] ?? String(m).toLowerCase().replaceAll('_', ' ');
-const ETICHETTE_ESITO = { OK: 'OK', DA_REVISIONARE: 'Da revisionare', BLOCCATO: 'Bloccato' };
-const badgeEsito = (esito) => h('span', { class: `badge badge-esito esito-${esito.toLowerCase()}` }, ETICHETTE_ESITO[esito] ?? esito);
 const ETICHETTE_REVISIONE = { CONFERMATA: 'Conferma', CORRETTA: 'Correggi', RESPINTA: 'Respingi' };
 const SPIEGAZIONE_REVISIONE = {
   CONFERMATA: 'Il risultato è corretto',
@@ -225,6 +195,7 @@ function dettagliAnalisi(a) {
   const r = a.risultato ?? {};
   const righe = [];
   if (r.errore === 'PROVIDER_NON_DISPONIBILE') righe.push('Il servizio di analisi non ha risposto dopo più tentativi.');
+  if (a.tipo_analisi === 'MODERAZIONE_TESTO' && r.motivo) righe.push(`Motivo indicato dal modello: ${motivo(r.motivo)} (confidenza ${percentuale(r.confidenza)}).`);
   if (r.spiegazione) righe.push(r.spiegazione);
   if (a.tipo_analisi === 'VERIFICA_PERTINENZA' && r.immagine?.osservato) righe.push(`Nell’immagine: ${r.immagine.osservato}`);
   if (a.tipo_analisi === 'VERIFICA_PERTINENZA' && r.immagine?.categoria_suggerita) righe.push(`Categoria che l’immagine mostra meglio: ${r.immagine.categoria_suggerita}`);
@@ -330,7 +301,22 @@ async function pannelloModerazione() {
   const formVisibilita = h(
     'form',
     { novalidate: true },
-    s.nascosta
+    s.nascosta_da_ia
+      ? [
+          avviso(
+            'warning',
+            h('strong', {}, 'Nascosta automaticamente dalla moderazione IA. '),
+            `Motivo: ${motivoAutoIa(s.motivo_nascondimento)}. `,
+            s.nascondimento_confermato ? 'Il comitato ha confermato che resta nascosta.' : 'Leggi la spiegazione del modello in “Analisi automatiche”, poi decidi.',
+          ),
+          h(
+            'div',
+            { class: 'form-actions' },
+            h('button', { type: 'submit', class: 'btn btn-primary' }, 'Ripristina'),
+            s.nascondimento_confermato ? null : h('button', { type: 'button', class: 'btn', 'data-azione': 'conferma' }, 'Conferma nascosta'),
+          ),
+        ]
+      : s.nascosta
       ? [
           avviso('warning', h('strong', {}, 'La segnalazione è nascosta. '), `Non compare agli altri utenti${s.motivo_nascondimento ? `. Motivo: ${s.motivo_nascondimento}` : '.'}`),
           h('button', { type: 'submit', class: 'btn btn-primary' }, 'Rendi di nuovo visibile'),
@@ -349,6 +335,17 @@ async function pannelloModerazione() {
         if (s.nascosta) await api.post(`${base}/mostra`);
         else await api.post(`${base}/nascondi`, Object.fromEntries(new FormData(formVisibilita)));
         sessionStorage.setItem('lnc-messaggio', s.nascosta ? 'La segnalazione è di nuovo visibile.' : 'La segnalazione è stata nascosta.');
+        location.reload();
+      } catch (err) {
+        mostraErrori(formVisibilita, err);
+      }
+    });
+  });
+  formVisibilita.querySelector('[data-azione="conferma"]')?.addEventListener('click', () => {
+    conInvio(formVisibilita, async () => {
+      try {
+        await api.post(`/moderazione/segnalazioni/${s.id_segnalazione}/conferma-nascosta`);
+        sessionStorage.setItem('lnc-messaggio', 'Confermato: la segnalazione resta nascosta.');
         location.reload();
       } catch (err) {
         mostraErrori(formVisibilita, err);
@@ -451,6 +448,10 @@ async function pannelloModerazione() {
     { class: 'panel pannello-moderazione stack', 'aria-labelledby': 't-moderazione' },
     h('h2', { id: 't-moderazione' }, 'Moderazione'),
     s.autore?.id_utente ? h('p', { class: 'small muted' }, `Autore: ${s.autore.nome} (utente n. ${s.autore.id_utente}) · visibilità ${s.visibilita.toLowerCase()}`) : null,
+    // Prima le analisi automatiche: la spiegazione del modello si legge prima di qualsiasi azione.
+    h('h3', {}, 'Analisi automatiche'),
+    riquadroRiepilogo(riepilogo),
+    listaAnalisi,
     h('h3', {}, 'Stato'),
     formStato,
     h('h3', {}, 'Visibilità sul sito'),
@@ -459,9 +460,6 @@ async function pannelloModerazione() {
     formCategorie,
     h('h3', {}, 'Allegati'),
     allegati,
-    h('h3', {}, 'Analisi automatiche'),
-    riquadroRiepilogo(riepilogo),
-    listaAnalisi,
     h('h3', { class: 'titolo-pericolo' }, 'Elimina la segnalazione'),
     formElimina,
   );
@@ -501,7 +499,7 @@ async function main() {
           { class: 'badges' },
           badgeStato(s.stato),
           ETICHETTE_VISIBILITA[s.visibilita] ? h('span', { class: 'badge' }, ETICHETTE_VISIBILITA[s.visibilita]) : null,
-          s.nascosta ? h('span', { class: 'badge badge-nascosta' }, '🚫 Nascosta') : null,
+          s.nascosta ? h('span', { class: 'badge badge-nascosta' }, s.in_revisione ? '⏳ In revisione' : s.nascosta_da_ia ? '🚫 Nascosta (IA)' : '🚫 Nascosta') : null,
           s.da_revisionare_ia ? h('span', { class: 'badge badge-ia' }, '⚠ Analisi IA da revisionare') : null,
         ),
         h('h1', {}, s.titolo),
@@ -526,7 +524,10 @@ async function main() {
     if (isModeratore(utente)) {
       seguito.append(await pannelloModerazione());
     }
-    if (s.nascosta && s.e_mia) {
+    if (s.nascosta && s.e_mia && s.in_revisione) {
+      // Nascosta dalla moderazione automatica: all'autore solo un messaggio neutro, senza il motivo.
+      laterale.prepend(avviso('info', 'La segnalazione è in revisione: il comitato la verificherà.'));
+    } else if (s.nascosta && s.e_mia) {
       laterale.prepend(avviso('warning', `Il comitato ha nascosto questa segnalazione: non è visibile agli altri utenti.${s.motivo_nascondimento ? ` Motivo: ${s.motivo_nascondimento}` : ''}`));
     } else if (!s.stato.pubblica && s.e_mia) {
       laterale.prepend(avviso('info', `La segnalazione è nello stato “${s.stato.nome}”: sarà pubblica dopo l’approvazione del comitato.`));
