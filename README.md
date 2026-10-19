@@ -14,6 +14,7 @@ I cittadini registrati inseriscono segnalazioni con almeno un allegato multimedi
 - Revisione finale dell'integrazione IA: [`docs/revisione-finale.md`](docs/revisione-finale.md)
 - Modello ER completo (15 tabelle): [`database/er-completo-v2.svg`](database/er-completo-v2.svg)
 - Modello ER ridotto (moderazione e flusso IA): [`database/er-ridotto-v2.svg`](database/er-ridotto-v2.svg)
+- Diagramma dell'architettura (vista logica e fisica, frecce numerate): [`docs/architettura.svg`](docs/architettura.svg), con la descrizione in [`docs/architettura.md`](docs/architettura.md)
 
 ## Stack
 
