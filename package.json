@@ -48,5 +48,10 @@
   },
   "allowScripts": {
     "argon2@0.45.1": true
+  },
+  "overrides": {
+    "@vercel/blob": {
+      "@vercel/oidc": "^4.0.9"
+    }
   }
 }

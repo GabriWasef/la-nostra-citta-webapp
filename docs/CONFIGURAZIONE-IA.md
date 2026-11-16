@@ -202,6 +202,40 @@ first API key":
 
 ---
 
+## 3b. OpenRouter con modelli gratuiti (`openrouter/free`)
+
+Serve se scegli `AI_PROVIDER=openrouter`. OpenRouter espone un'unica API compatibile OpenAI. Il modello
+`openrouter/free` sceglie **a caso** un modello gratuito tra quelli disponibili e in grado di soddisfare la richiesta
+(JSON, immagini): il modello che risponde cambia da una richiesta all'altra e compare nel campo "modello" di ogni
+analisi, per esempio `openrouter:openrouter/free (upstage/solar-pro-3:free)`.
+
+1. Apri <https://openrouter.ai>, crea un account e vai su **Settings → Keys → Create Key**.
+2. Copia la chiave (compare una sola volta): va in `OPENROUTER_API_KEY`, solo in `.env` o nei Secret di Vercel.
+3. Imposta `AI_PROVIDER=openrouter`. `OPENROUTER_MODEL` è già `openrouter/free`; si può indicare un modello gratuito
+   preciso (con suffisso `:free`) se serve un comportamento prevedibile.
+4. Opzionale: `AI_FALLBACK_PROVIDER=groq` o `cloudflare` come riserva, oppure `regole` (nessuna riserva esterna).
+
+**Limiti dei modelli gratuiti** (da verificare in <https://openrouter.ai/docs/api-reference/limits>): 20 richieste al
+minuto; 50 al giorno con meno di 10 dollari di credito acquistato, 1000 al giorno con almeno 10. Il progetto parte da
+`OPENROUTER_MAX_RPM=20` e `OPENROUTER_MAX_RPD=50`: se acquisti credito, alza `OPENROUTER_MAX_RPD`. Un'analisi può
+richiedere più richieste (testo e immagine), quindi con 50 al giorno si analizzano poche decine di segnalazioni:
+oltre il limite i job vengono rimandati (non si perdono) o passano alla riserva. Creare altri account o altre chiavi
+non aumenta i limiti.
+
+**Privacy.** I modelli gratuiti sono gestiti da fornitori terzi che possono conservare i dati e usarli per
+l'addestramento. Per questo `OPENROUTER_DATA_COLLECTION=deny` (predefinito) chiede a OpenRouter di usare solo
+fornitori che non raccolgono dati. Se il pool di modelli gratuiti compatibili è vuoto OpenRouter risponde 404
+("No endpoints found"): le analisi passano alla riserva o ai soli controlli a regole. In quel caso
+`OPENROUTER_DATA_COLLECTION=allow` rende il servizio disponibile ma **i testi e le immagini delle segnalazioni
+possono essere conservati e usati dai fornitori dei modelli**; valuta con il comitato e aggiorna l'informativa.
+
+**Cose da sapere.** Il router è casuale: la qualità della moderazione e della classificazione varia con il modello
+estratto, e un modello senza supporto delle immagini non verifica la pertinenza delle foto (le analisi tecniche e di
+autenticità restano a regole). Le risposte JSON non valide non fanno fallire la segnalazione: passano alla riserva.
+Prova la chiave prima di Vercel con il comando del §5 adattato all'URL `https://openrouter.ai/api/v1`.
+
+---
+
 ## 4. Scegli la configurazione
 
 | Profilo | Variabili principali | Quando |

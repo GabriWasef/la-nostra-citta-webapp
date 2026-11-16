@@ -121,7 +121,7 @@ describe('Limitatore delle richieste ai provider', () => {
 
   test('valori per provider oppure comuni', () => {
     const l = creaLimitatori({ AI_MAX_RPM: 20, AI_MAX_RPD: 500, AI_MAX_TPD: 1000, GROQ_MAX_RPM: 30 }, pool);
-    assert.deepEqual(Object.keys(l), ['mistral', 'cloudflare', 'groq']);
+    assert.deepEqual(Object.keys(l), ['openrouter', 'mistral', 'cloudflare', 'groq']);
   });
 
   test('la manutenzione elimina i contatori scaduti', async () => {

@@ -11,6 +11,19 @@ import { creaProviderOpenAI } from './openaiCompatibile.js';
 // Indirizzo, chiave, modello e response_format di ciascun servizio, dalle variabili d'ambiente.
 // Cloudflare Workers AI riceve lo schema della risposta (json_schema); gli altri il solo json_object.
 export const PROVIDER = {
+  // OpenRouter: API compatibile OpenAI. "openrouter/free" sceglie a caso un modello gratuito tra quelli che
+  // supportano ciò che la richiesta chiede (JSON, immagini). I fornitori dei modelli gratuiti possono
+  // conservare i dati: per impostazione predefinita si chiedono solo fornitori che non li raccolgono.
+  openrouter: (cfg) => ({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey: cfg.OPENROUTER_API_KEY,
+    modello: cfg.OPENROUTER_MODEL,
+    // Intestazioni di attribuzione facoltative (solo ASCII).
+    intestazioni: { 'HTTP-Referer': cfg.APP_ORIGIN ?? 'https://localhost', 'X-Title': 'La Nostra Citta' },
+    corpoExtra: { provider: { data_collection: cfg.OPENROUTER_DATA_COLLECTION ?? 'deny', require_parameters: true } },
+    // I modelli con ragionamento consumano token prima della risposta.
+    maxTokens: 2000,
+  }),
   mistral: (cfg) => ({ baseURL: 'https://api.mistral.ai/v1', apiKey: cfg.MISTRAL_API_KEY, modello: cfg.MISTRAL_MODEL }),
   cloudflare: (cfg) => ({
     baseURL: `https://api.cloudflare.com/client/v4/accounts/${cfg.CLOUDFLARE_ACCOUNT_ID}/ai/v1`,
@@ -75,7 +88,7 @@ export function creaLlm(catena) {
 
 /**
  * Costruisce il modello linguistico dalla configurazione (null se AI_PROVIDER non è un provider esterno).
- * Livelli: AI_PROVIDER (mistral o cloudflare), poi AI_FALLBACK_PROVIDER se è un servizio (groq o cloudflare),
+ * Livelli: AI_PROVIDER (openrouter, mistral o cloudflare), poi AI_FALLBACK_PROVIDER se è un servizio (openrouter, groq o cloudflare),
  * poi le regole: le analisi a regole fatte nella richiesta restano, e il job viene ritentato più tardi.
  * @param {object} cfg variabili d'ambiente validate (config/env.js)
  * @param {{fetch?: typeof fetch, attendi?: Function, limitatori?: Record<string, object>}} [dipendenze]

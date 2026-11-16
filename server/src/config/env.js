@@ -9,9 +9,9 @@ const booleano = z
   .transform((v) => v === 'true' || v === '1');
 
 // Provider con un modello linguistico esterno (gli altri valori di AI_PROVIDER sono regole e nessuno).
-export const PROVIDER_ESTERNI = ['mistral', 'cloudflare'];
+export const PROVIDER_ESTERNI = ['openrouter', 'mistral', 'cloudflare'];
 // Variabili obbligatorie per ciascun servizio esterno.
-const CHIAVI_PROVIDER = { mistral: ['MISTRAL_API_KEY'], cloudflare: ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'], groq: ['GROQ_API_KEY'] };
+const CHIAVI_PROVIDER = { openrouter: ['OPENROUTER_API_KEY'], mistral: ['MISTRAL_API_KEY'], cloudflare: ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'], groq: ['GROQ_API_KEY'] };
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -58,10 +58,15 @@ const schema = z.object({
   GEOCODING_URL: z.url().default('https://nominatim.openstreetmap.org'),
   GEOCODING_EMAIL: z.union([z.email(), z.literal('')]).default(''),
 
-  // regole: filtri a regole inclusi nel progetto; mistral o cloudflare: in più un modello linguistico nel worker.
-  AI_PROVIDER: z.enum(['regole', 'mistral', 'cloudflare', 'nessuno']).default('regole'),
-  // Se il primario non risponde: groq o cloudflare (secondo servizio) oppure regole/nessuno (nessun secondo servizio).
-  AI_FALLBACK_PROVIDER: z.enum(['groq', 'cloudflare', 'regole', 'nessuno']).default('regole'),
+  // regole: filtri a regole inclusi nel progetto; openrouter, mistral o cloudflare: in più un modello linguistico nel worker.
+  AI_PROVIDER: z.enum(['regole', 'openrouter', 'mistral', 'cloudflare', 'nessuno']).default('regole'),
+  // Se il primario non risponde: openrouter, groq o cloudflare (secondo servizio) oppure regole/nessuno (nessun secondo servizio).
+  AI_FALLBACK_PROVIDER: z.enum(['openrouter', 'groq', 'cloudflare', 'regole', 'nessuno']).default('regole'),
+  // OpenRouter: "openrouter/free" sceglie a caso tra i modelli gratuiti disponibili (che cambiano nel tempo).
+  OPENROUTER_API_KEY: z.string().default(''),
+  OPENROUTER_MODEL: z.string().min(1).default('openrouter/free'),
+  // deny = solo fornitori che non conservano né usano per l'addestramento i dati inviati (può ridurre i modelli disponibili).
+  OPENROUTER_DATA_COLLECTION: z.enum(['deny', 'allow']).default('deny'),
   MISTRAL_API_KEY: z.string().default(''),
   MISTRAL_MODEL: z.string().min(1).default('mistral-small-latest'),
   // Cloudflare Workers AI, endpoint compatibile OpenAI .../accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1
@@ -78,6 +83,9 @@ const schema = z.object({
   AI_MAX_RPM: z.coerce.number().int().min(0).default(20),
   AI_MAX_RPD: z.coerce.number().int().min(0).default(500),
   AI_MAX_TPD: z.coerce.number().int().min(0).default(100_000),
+  OPENROUTER_MAX_RPM: z.coerce.number().int().min(0).optional(),
+  OPENROUTER_MAX_RPD: z.coerce.number().int().min(0).optional(),
+  OPENROUTER_MAX_TPD: z.coerce.number().int().min(0).optional(),
   MISTRAL_MAX_RPM: z.coerce.number().int().min(0).optional(),
   MISTRAL_MAX_RPD: z.coerce.number().int().min(0).optional(),
   MISTRAL_MAX_TPD: z.coerce.number().int().min(0).optional(),
@@ -120,8 +128,8 @@ function variabiliAmbiente() {
     if (host) grezze.APP_ORIGIN = `https://${host}`;
   }
   // Vercel imposta variabili vuote per le integrazioni non collegate: si trattano come assenti.
-  const facoltative = ['STORAGE_DRIVER', 'RATE_LIMIT_STORE', 'MISTRAL_MODEL', 'CLOUDFLARE_MODEL', 'GROQ_MODEL'];
-  for (const p of ['MISTRAL', 'CLOUDFLARE', 'GROQ']) for (const t of ['RPM', 'RPD', 'TPD']) facoltative.push(`${p}_MAX_${t}`);
+  const facoltative = ['STORAGE_DRIVER', 'RATE_LIMIT_STORE', 'OPENROUTER_MODEL', 'OPENROUTER_DATA_COLLECTION', 'MISTRAL_MODEL', 'CLOUDFLARE_MODEL', 'GROQ_MODEL'];
+  for (const p of ['OPENROUTER', 'MISTRAL', 'CLOUDFLARE', 'GROQ']) for (const t of ['RPM', 'RPD', 'TPD']) facoltative.push(`${p}_MAX_${t}`);
   for (const chiave of facoltative) if (grezze[chiave] === '') delete grezze[chiave];
   return grezze;
 }
