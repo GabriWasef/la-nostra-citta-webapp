@@ -8,7 +8,10 @@ import { MySqlRateLimitStore } from '../../config/rateLimitStore.js';
 
 const MINUTO_MS = 60_000;
 const GIORNO_MS = 86_400_000;
-export const PROVIDER_CON_LIMITI = ['mistral', 'cloudflare', 'groq'];
+export const PROVIDER_CON_LIMITI = ['openrouter', 'mistral', 'cloudflare', 'groq'];
+// Limiti dei servizi gratuiti, più bassi dei valori comuni. OpenRouter: modelli gratuiti 20 richieste al minuto
+// e 50 al giorno (1000 con almeno 10 dollari di credito acquistato: alzare OPENROUTER_MAX_RPD).
+const LIMITI_PREDEFINITI = { openrouter: { RPM: 20, RPD: 50, TPD: 0 } };
 
 /**
  * @param {object} opzioni
@@ -74,7 +77,7 @@ export function creaLimitatore({ pool, nome, rpm, rpd, tpd = 0, ora = Date.now }
 
 /** Limitatori per i provider configurabili: valori per provider, altrimenti quelli comuni. */
 export function creaLimitatori(cfg, pool) {
-  const limite = (nome, tipo) => cfg[`${nome.toUpperCase()}_MAX_${tipo}`] ?? cfg[`AI_MAX_${tipo}`] ?? 0;
+  const limite = (nome, tipo) => cfg[`${nome.toUpperCase()}_MAX_${tipo}`] ?? LIMITI_PREDEFINITI[nome]?.[tipo] ?? cfg[`AI_MAX_${tipo}`] ?? 0;
   return Object.fromEntries(
     PROVIDER_CON_LIMITI.map((nome) => [
       nome,

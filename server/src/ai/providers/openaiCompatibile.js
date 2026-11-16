@@ -1,4 +1,4 @@
-// Adapter unico per le API "chat completions" compatibili con OpenAI (Mistral, Cloudflare Workers AI, Groq).
+// Adapter unico per le API "chat completions" compatibili con OpenAI (OpenRouter, Mistral, Cloudflare Workers AI, Groq).
 // fetch nativo, nessun SDK: cambiano solo indirizzo, chiave e modello.
 // - timeout con AbortController, entro la scadenza dell'invocazione;
 // - nuovi tentativi con attesa esponenziale su 429, 5xx, timeout ed errori di rete;
@@ -47,6 +47,9 @@ function estraiJson(contenuto) {
  * @param {{prenota(): Promise<{ok: boolean, ritardoMs?: number, giorno?: string}>, registraToken?: Function}} [opzioni.limitatore]
  *   limiti di richieste e token
  * @param {'json_object'|'json_schema'} [opzioni.formato] response_format chiesto al provider
+ * @param {Record<string, string>} [opzioni.intestazioni] intestazioni HTTP aggiuntive
+ * @param {object} [opzioni.corpoExtra] campi aggiuntivi del corpo della richiesta (es. "provider" di OpenRouter)
+ * @param {number} [opzioni.maxTokens] token massimi della risposta
  */
 export function creaProviderOpenAI({
   nome,
@@ -59,6 +62,9 @@ export function creaProviderOpenAI({
   attendi = attendiDefault,
   limitatore = null,
   formato = 'json_object',
+  intestazioni = {},
+  corpoExtra = {},
+  maxTokens = 1000,
 }) {
   const etichetta = `${nome}:${modello}`;
   const url = `${baseURL.replace(/\/+$/, '')}/chat/completions`;
@@ -72,7 +78,7 @@ export function creaProviderOpenAI({
     await limitatore.registraToken(Number(token), giorno).catch((err) => logger.warn({ err: err.message, provider: nome }, 'Token non registrati nella quota'));
   }
 
-  /** Una richiesta HTTP. @returns {Promise<string>} contenuto del messaggio di risposta */
+  /** Una richiesta HTTP. @returns {Promise<{contenuto: string, modelloUsato: string|null}>} messaggio di risposta e modello che l'ha prodotto */
   async function richiesta(messaggi, rispostaFormato, scadenza) {
     const residuo = scadenza - Date.now();
     if (residuo < TEMPO_MINIMO_CHIAMATA_MS) throw new RinvioJob(`${etichetta}: tempo dell'invocazione esaurito`, 1_000);
@@ -90,20 +96,21 @@ export function creaProviderOpenAI({
     try {
       risposta = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json', ...intestazioni, Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model: modello,
           messages: messaggi,
           response_format: rispostaFormato,
           temperature: 0,
-          max_tokens: 1000,
+          max_tokens: maxTokens,
+          ...corpoExtra,
         }),
         signal: controller.signal,
       });
       if (risposta.ok) {
         const corpo = await risposta.json();
         await registraToken(corpo?.usage?.total_tokens, prenotazione?.giorno);
-        return corpo?.choices?.[0]?.message?.content ?? '';
+        return { contenuto: corpo?.choices?.[0]?.message?.content ?? '', modelloUsato: typeof corpo?.model === 'string' ? corpo.model : null };
       }
       // Il corpo dell'errore serve per i log, ma si tiene corto.
       const dettaglio = (await risposta.text().catch(() => '')).slice(0, 300);
@@ -157,7 +164,9 @@ export function creaProviderOpenAI({
      * @returns {Promise<{modello: string, dati: any}>}
      */
     async completaJson(messaggi, schema, { scadenza = Date.now() + 50_000 } = {}) {
-      const contenuto = await conTentativi(messaggi, formatoRisposta(formato, schema), scadenza);
+      const { contenuto, modelloUsato } = await conTentativi(messaggi, formatoRisposta(formato, schema), scadenza);
+      // Con un router (openrouter/free) il modello cambia a ogni richiesta: si registra quello che ha risposto.
+      const etichettaUsata = modelloUsato && modelloUsato !== modello ? `${etichetta} (${modelloUsato})` : etichetta;
       // Una risposta non valida non si richiede allo stesso provider: si passa al livello successivo.
       let json;
       try {
@@ -166,7 +175,7 @@ export function creaProviderOpenAI({
         throw errore('risposta non valida: la risposta non è JSON', { stato: 'RISPOSTA_NON_VALIDA' });
       }
       const esito = schema.safeParse(json);
-      if (esito.success) return { modello: etichetta, dati: esito.data };
+      if (esito.success) return { modello: etichettaUsata, dati: esito.data };
       const problemi = esito.error.issues.slice(0, 3).map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
       throw errore(`risposta non valida: la risposta non rispetta lo schema (${problemi})`, { stato: 'RISPOSTA_NON_VALIDA' });
     },

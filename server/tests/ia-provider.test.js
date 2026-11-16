@@ -22,6 +22,10 @@ const config = (extra = {}) => ({
   MISTRAL_MODEL: 'mistral-small-latest',
   GROQ_API_KEY: 'chiave-groq-di-prova',
   GROQ_MODEL: 'qwen/qwen3.8-27b',
+  OPENROUTER_API_KEY: 'chiave-openrouter-di-prova',
+  OPENROUTER_MODEL: 'openrouter/free',
+  OPENROUTER_DATA_COLLECTION: 'deny',
+  APP_ORIGIN: 'https://esempio.test',
   CLOUDFLARE_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
   CLOUDFLARE_API_TOKEN: 'token-cloudflare-di-prova',
   CLOUDFLARE_MODEL: '@cf/google/gemma-4-26b-a4b-it',
@@ -165,6 +169,62 @@ describe('Adapter OpenAI-compatibile', () => {
   });
 });
 
+describe('OpenRouter (openrouter/free)', () => {
+  const llm = (cfg, sequenza) => {
+    const fetch = creaFetchFinto(sequenza);
+    return { llm: creaLlmDaConfig(config({ AI_PROVIDER: 'openrouter', AI_FALLBACK_PROVIDER: 'groq', ...cfg }), { fetch, attendi: attesaFinta() }), fetch };
+  };
+
+  test('endpoint OpenRouter, chiave Bearer, modello openrouter/free, solo fornitori che non raccolgono dati', async () => {
+    const { llm: m, fetch } = llm({}, [json(RISPOSTA_TESTO)]);
+    const r = await m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE });
+    assert.equal(r.modello, 'openrouter:openrouter/free');
+    const [c] = fetch.chiamate;
+    assert.equal(c.url, 'https://openrouter.ai/api/v1/chat/completions');
+    assert.equal(c.headers.Authorization, 'Bearer chiave-openrouter-di-prova');
+    assert.equal(c.headers['HTTP-Referer'], 'https://esempio.test');
+    assert.equal(c.headers['X-Title'], 'La Nostra Citta');
+    assert.equal(c.body.model, 'openrouter/free');
+    assert.deepEqual(c.body.response_format, { type: 'json_object' });
+    assert.deepEqual(c.body.provider, { data_collection: 'deny', require_parameters: true });
+    assert.equal(c.body.max_tokens, 2000);
+  });
+
+  test('OPENROUTER_DATA_COLLECTION e OPENROUTER_MODEL si possono cambiare', async () => {
+    const { llm: m, fetch } = llm({ OPENROUTER_DATA_COLLECTION: 'allow', OPENROUTER_MODEL: 'meta-llama/llama-3.3-70b-instruct:free' }, [json(RISPOSTA_TESTO)]);
+    await m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE });
+    assert.equal(fetch.chiamate[0].body.model, 'meta-llama/llama-3.3-70b-instruct:free');
+    assert.equal(fetch.chiamate[0].body.provider.data_collection, 'allow');
+  });
+
+  test('con il router il modello cambia a ogni richiesta: si registra quello che ha risposto', async () => {
+    const { llm: m } = llm({}, [json(RISPOSTA_TESTO, { modello: 'upstage/solar-pro-3:free' })]);
+    const r = await m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE });
+    assert.equal(r.modello, 'openrouter:openrouter/free (upstage/solar-pro-3:free)');
+  });
+
+  test('risposta racchiusa in un recinto markdown o con ragionamento <think>: il JSON si estrae lo stesso', async () => {
+    const { llm: m } = llm({}, [testo('<think>vediamo…</think>\n```json\n' + JSON.stringify(RISPOSTA_TESTO) + '\n```')]);
+    assert.equal((await m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE })).risposta.testo.accettabile, true);
+  });
+
+  test('429 (limite dei modelli gratuiti): si rimanda il job; 404 "nessun modello disponibile": fallback', async () => {
+    const { llm: a } = llm({ AI_MAX_RETRIES: 0, AI_FALLBACK_PROVIDER: 'regole' }, [errore(429, { retryAfter: 30 })]);
+    const err = await rifiuta(a.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE }));
+    assert.ok(err instanceof RinvioJob);
+    assert.equal(err.ritardoMs, 30_000);
+    const { llm: b, fetch } = llm({}, [errore(404, { corpo: '{"error":{"code":404,"message":"No endpoints found matching your data policy"}}' }), json(RISPOSTA_TESTO)]);
+    assert.equal((await b.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE })).modello, 'groq:qwen/qwen3.8-27b');
+    assert.equal(fetch.chiamate.length, 2);
+  });
+
+  test('la chiave non compare mai negli errori', async () => {
+    const { llm: m } = llm({ AI_FALLBACK_PROVIDER: 'regole', AI_MAX_RETRIES: 0 }, [errore(401, { corpo: 'chiave chiave-openrouter-di-prova non valida' })]);
+    const err = await rifiuta(m.analizzaTesto({ testo: 'Buca', categorie: CATEGORIE }));
+    assert.ok(!err.message.includes('chiave-openrouter-di-prova'), err.message);
+  });
+});
+
 describe('Cloudflare Workers AI', () => {
   const llm = (cfg, sequenza) => {
     const fetch = creaFetchFinto(sequenza);
@@ -294,6 +354,13 @@ describe('Registro dei provider', () => {
     assert.equal(p.moderazione.modello, 'regole-moderazione-it@1');
     assert.equal(p.llm.modello, 'mistral:mistral-small-latest');
     assert.equal(creaProvider(config({ AI_FALLBACK_PROVIDER: 'groq' })).llm.modello, 'mistral:mistral-small-latest → groq:qwen/qwen3.8-27b');
+  });
+  test('openrouter come principale, con Cloudflare o Groq di riserva', () => {
+    assert.equal(creaProvider(config({ AI_PROVIDER: 'openrouter', AI_FALLBACK_PROVIDER: 'regole' })).llm.modello, 'openrouter:openrouter/free');
+    assert.equal(
+      creaProvider(config({ AI_PROVIDER: 'openrouter', AI_FALLBACK_PROVIDER: 'cloudflare' })).llm.modello,
+      'openrouter:openrouter/free → cloudflare:@cf/google/gemma-4-26b-a4b-it',
+    );
   });
   test('cloudflare con fallback groq; senza fallback esterno un solo livello', () => {
     assert.equal(

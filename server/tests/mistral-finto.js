@@ -1,8 +1,8 @@
-// fetch finto per le API chat completions (Mistral, Cloudflare, Groq): nessuna rete nei test.
+// fetch finto per le API chat completions (OpenRouter, Mistral, Cloudflare, Groq): nessuna rete nei test.
 // Ogni chiamata consuma il passo successivo della sequenza; le richieste ricevute restano in `chiamate`.
 
 /** Risposta 200 con il JSON indicato come contenuto del messaggio (token: usage.total_tokens). */
-export const json = (oggetto, { token } = {}) => ({ stato: 200, contenuto: JSON.stringify(oggetto), token });
+export const json = (oggetto, { token, modello } = {}) => ({ stato: 200, contenuto: JSON.stringify(oggetto), token, modello });
 /** Risposta 200 con un contenuto testuale qualsiasi (per esempio JSON non valido). */
 export const testo = (contenuto) => ({ stato: 200, contenuto });
 /** Errore HTTP, con eventuale Retry-After in secondi. */
@@ -36,7 +36,7 @@ export function creaFetchFinto(sequenza) {
     }
     return Response.json({
       id: 'cmpl-finto',
-      model: chiamate.at(-1).body.model,
+      model: passo.modello ?? chiamate.at(-1).body.model,
       choices: [{ index: 0, message: { role: 'assistant', content: passo.contenuto }, finish_reason: 'stop' }],
       ...(passo.token !== undefined && { usage: { prompt_tokens: passo.token - 100, completion_tokens: 100, total_tokens: passo.token } }),
     });
